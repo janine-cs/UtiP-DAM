@@ -17,7 +17,7 @@ do
   dataset=$(cat /opt/utils/site-mapping.csv | grep $site | cut -d, -f2)
   echo $dataset
 
-  url='https://localhost:8081/utip-dam/mobility/upload/1'
+  url='https://'$server_name':'$https_port'/utip-dam/mobility/upload/'$dataset
 
   echo $url
 
