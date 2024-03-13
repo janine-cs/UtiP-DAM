@@ -40,16 +40,16 @@ public class Dataset {
         if (dataset.getName() != null) {
             this.name = dataset.getName();
         }
-        if (dataset.description!= null) {
+        if (dataset.getDescription()!= null) {
             this.description = dataset.getDescription();
         }
-        if (dataset.fee!= null) {
+        if (dataset.getFee()!= null) {
             this.fee = dataset.getFee();
         }
-        if (dataset.organizationId!= null) {
+        if (dataset.getOrganizationId()!= null) {
             this.organizationId = dataset.getOrganizationId();
         }
-        if (dataset.countryCode!= null) {
+        if (dataset.getCountryCode()!= null) {
             this.countryCode = dataset.getCountryCode();
         }
     }

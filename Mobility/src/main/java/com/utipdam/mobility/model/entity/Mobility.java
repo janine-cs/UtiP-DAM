@@ -39,4 +39,22 @@ public class Mobility {
     public Mobility() {
     }
 
+    public void update(Mobility mobility) {
+        if (mobility.getResolution() != null) {
+            this.resolution = mobility.getResolution();
+        }
+        if (mobility.getStartDate()!= null) {
+            this.startDate = mobility.getStartDate();
+        }
+        if (mobility.getEndDate()!= null) {
+            this.endDate = mobility.getEndDate();
+        }
+        if (mobility.getDataPoints()!= null) {
+            this.dataPoints = mobility.getDataPoints();
+        }
+        if (mobility.getUpdatedOn()!= null) {
+            this.updatedOn = mobility.getUpdatedOn();
+        }
+    }
+
 }

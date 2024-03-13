@@ -1,11 +1,9 @@
 package com.utipdam.mobility.controller;
 
 import com.utipdam.mobility.business.DatasetBusiness;
-import com.utipdam.mobility.business.OrganizationBusiness;
 import com.utipdam.mobility.exception.DefaultException;
 import com.utipdam.mobility.model.DatasetDTO;
 import com.utipdam.mobility.model.entity.Dataset;
-import com.utipdam.mobility.model.entity.Organization;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -22,8 +20,6 @@ public class DatasetController {
     @Autowired
     private DatasetBusiness datasetBusiness;
 
-    @Autowired
-    private OrganizationBusiness organizationBusiness;
 
     @GetMapping("datasets")
     public ResponseEntity<Map<String, Object>> getAllOrganizations(@RequestParam(required = false) String name) {
@@ -31,7 +27,7 @@ public class DatasetController {
         if (name == null){
             response.put("data", datasetBusiness.getAll());
         }else{
-            response.put("data", datasetBusiness.getAll());
+            response.put("data", datasetBusiness.getByName(name));
         }
 
         return new ResponseEntity<>(response, HttpStatus.OK);
