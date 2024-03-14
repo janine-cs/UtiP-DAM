@@ -6,8 +6,9 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
-public interface MobilityRepository extends JpaRepository<Mobility, Integer> {
+public interface MobilityRepository extends JpaRepository<Mobility, UUID> {
     List<Mobility> findAll();
-    Optional<Mobility> findById(@Param("id") Integer id);
+    Optional<Mobility> findById(@Param("id") UUID id);
 }

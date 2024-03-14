@@ -13,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
 @RestController
 public class OrganizationController {
@@ -34,7 +35,7 @@ public class OrganizationController {
     }
 
     @GetMapping("organization/{id}")
-    public ResponseEntity<Map<String, Object>> getById(@PathVariable Integer id) {
+    public ResponseEntity<Map<String, Object>> getById(@PathVariable UUID id) {
         Map<String, Object> response = new HashMap<>();
 
         response.put("data", organizationBusiness.getById(id));
@@ -65,7 +66,7 @@ public class OrganizationController {
     }
 
     @PutMapping("organization/{id}")
-    public ResponseEntity<Map<String, Object>> update(@PathVariable Integer id,
+    public ResponseEntity<Map<String, Object>> update(@PathVariable UUID id,
                                                       @RequestBody Organization organization) throws DefaultException {
         Map<String, Object> response = new HashMap<>();
         response.put("data", organizationBusiness.update(id, organization));

@@ -3,14 +3,14 @@ package com.utipdam.mobility.model.entity;
 import lombok.Data;
 
 import javax.persistence.*;
+import java.util.UUID;
 
 @Entity(name = "organization")
 @Data
 public class Organization {
     @Id
-    @GeneratedValue(strategy= GenerationType.IDENTITY)
     @Column(name = "id")
-    private Integer id;
+    private UUID id;
 
     @Column(name = "name")
     private String name;
@@ -22,7 +22,8 @@ public class Organization {
     public Organization() {
     }
 
-    public Organization(String name, String email) {
+    public Organization(UUID id, String name, String email) {
+        this.id = id;
         this.name = name;
         this.email = email;
     }

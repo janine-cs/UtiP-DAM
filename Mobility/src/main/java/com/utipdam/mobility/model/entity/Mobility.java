@@ -5,17 +5,17 @@ import lombok.Data;
 import javax.persistence.*;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
+import java.util.UUID;
 
 @Entity(name = "mobility")
 @Data
 public class Mobility {
     @Id
-    @GeneratedValue(strategy= GenerationType.IDENTITY)
     @Column(name = "id")
-    private Integer id;
+    private UUID id;
 
     @Column(name = "dataset_id")
-    private Integer datasetId;
+    private UUID datasetId;
 
     @Column(name = "resolution")
     private String resolution;

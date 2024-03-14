@@ -11,9 +11,8 @@ import java.util.UUID;
 @Data
 public class Dataset {
     @Id
-    @GeneratedValue(strategy= GenerationType.IDENTITY)
     @Column(name = "id")
-    private Integer id;
+    private UUID id;
 
     @Column(name = "name")
     private String name;
@@ -31,7 +30,7 @@ public class Dataset {
     private String updatedOn = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(Calendar.getInstance().getTime());
 
     @Column(name = "organization_id")
-    private Integer organizationId;
+    private UUID organizationId;
 
     @Column(name = "publish")
     private Boolean publish;

@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 
 @Service
@@ -25,7 +26,7 @@ public class OrganizationService {
         return organizationRepository.findByName(name);
     }
 
-    public Optional<Organization> findById(Integer id) {
+    public Optional<Organization> findById(UUID id) {
         return organizationRepository.findById(id);
     }
 

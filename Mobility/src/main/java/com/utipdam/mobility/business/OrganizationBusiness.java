@@ -10,6 +10,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 
 @BusinessService
@@ -25,15 +26,17 @@ public class OrganizationBusiness {
         return organizationService.findByName(name);
     }
 
-    public Optional<Organization> getById(Integer id) {
+    public Optional<Organization> getById(UUID id) {
         return organizationService.findById(id);
     }
 
     public Organization save(Organization organization){
+        UUID uuid = UUID.randomUUID();
+        organization.setId(uuid);
         return organizationService.save(organization);
     }
 
-    public Organization update(Integer id, Organization organization) throws DefaultException {
+    public Organization update(UUID id, Organization organization) throws DefaultException {
         if (id == null) {
             throw new DefaultException("id can not be null");
         }

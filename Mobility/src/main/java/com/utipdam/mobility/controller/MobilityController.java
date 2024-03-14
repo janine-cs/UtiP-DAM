@@ -89,6 +89,7 @@ public class MobilityController {
             mobility.setDatasetId(ds.getId());
             mobility.setStartDate(csvDate);
             mobility.setEndDate(csvDate);
+            mobility.setResolution("daily");
 
             Mobility mb = mobilityBusiness.save(mobility);
 
@@ -115,14 +116,14 @@ public class MobilityController {
 
     //TODO
     @RequestMapping(path = "/mobility/anonymize", method = RequestMethod.GET)
-    public ResponseEntity<Resource> anonymize(@RequestParam Integer mobilityId,
+    public ResponseEntity<Resource> anonymize(@RequestParam UUID mobilityId,
                                               @RequestParam String resolution, @RequestParam Integer kValue) {
         return null;
     }
 
 
     @RequestMapping(path = "/mobility/download", method = RequestMethod.GET)
-    public ResponseEntity<Resource> download(@RequestParam Integer mobilityId) throws IOException {
+    public ResponseEntity<Resource> download(@RequestParam UUID mobilityId) throws IOException {
         HttpHeaders responseHeaders = new HttpHeaders();
 
         Optional<Mobility> mobility = mobilityBusiness.getById(mobilityId);

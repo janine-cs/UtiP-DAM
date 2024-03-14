@@ -6,9 +6,10 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
-public interface DatasetRepository extends JpaRepository<Dataset, Integer> {
+public interface DatasetRepository extends JpaRepository<Dataset, UUID> {
     List<Dataset> findAll();
-    Optional<Dataset> findById(@Param("id") Integer id);
+    Optional<Dataset> findById(@Param("id") UUID id);
     Dataset findByName(@Param("name") String name);
 }

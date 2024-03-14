@@ -11,6 +11,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 
 @BusinessService
@@ -29,20 +30,26 @@ public class DatasetBusiness {
         return datasetService.findByName(name);
     }
 
-    public Optional<Dataset> getById(Integer id) {
+    public Optional<Dataset> getById(UUID id) {
         return datasetService.findById(id);
     }
 
     public Dataset save(DatasetDTO dataset){
+        UUID uuid = UUID.randomUUID();
         Dataset ds = new Dataset();
+        ds.setId(uuid);
         ds.setName(dataset.getName());
         ds.setDescription(dataset.getDescription());
         ds.setCountryCode(dataset.getCountryCode());
         ds.setFee(dataset.getFee());
+        ds.setInternal(dataset.getInternal() != null && dataset.getInternal());
+        ds.setPublish(dataset.getPublish() != null && dataset.getPublish());
+
         if (dataset.getOrganization() != null){
             Organization response = organizationService.findByName(dataset.getOrganization().getName());
             if (response == null) {
-                Organization org = new Organization(dataset.getOrganization().getName(), dataset.getOrganization().getEmail());
+                UUID orgUUID = UUID.randomUUID();
+                Organization org = new Organization(orgUUID, dataset.getOrganization().getName(), dataset.getOrganization().getEmail());
                 ds.setOrganizationId(organizationService.save(org).getId());
             }else{
                 ds.setOrganizationId(response.getId());
@@ -51,7 +58,7 @@ public class DatasetBusiness {
         return datasetService.save(ds);
     }
 
-    public Dataset update(Integer id, DatasetDTO dataset) throws DefaultException {
+    public Dataset update(UUID id, DatasetDTO dataset) throws DefaultException {
         if (id == null) {
             throw new DefaultException("id can not be null");
         }
@@ -68,7 +75,8 @@ public class DatasetBusiness {
             }else{
                 Organization response = organizationService.findByName(dataset.getOrganization().getName());
                 if (response == null) {
-                    Organization org = new Organization(dataset.getOrganization().getName(), dataset.getOrganization().getEmail());
+                    UUID orgUUID = UUID.randomUUID();
+                    Organization org = new Organization(orgUUID, dataset.getOrganization().getName(), dataset.getOrganization().getEmail());
                     data.setOrganizationId(organizationService.save(org).getId());
                 }else{
                     data.setOrganizationId(response.getId());

@@ -8,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 
 @BusinessService
@@ -20,15 +21,17 @@ public class MobilityBusiness {
         return mobilityService.findAll();
     }
 
-    public Optional<Mobility> getById(Integer id) {
+    public Optional<Mobility> getById(UUID id) {
         return mobilityService.findById(id);
     }
 
     public Mobility save(Mobility mobility){
+        UUID uuid = UUID.randomUUID();
+        mobility.setId(uuid);
         return mobilityService.save(mobility);
     }
 
-    public Mobility update(Integer id, Mobility mobility) throws DefaultException {
+    public Mobility update(UUID id, Mobility mobility) throws DefaultException {
         if (id == null) {
             throw new DefaultException("id can not be null");
         }

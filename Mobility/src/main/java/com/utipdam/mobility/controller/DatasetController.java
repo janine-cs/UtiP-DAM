@@ -34,7 +34,7 @@ public class DatasetController {
     }
 
     @GetMapping("dataset/{id}")
-    public ResponseEntity<Map<String, Object>> getById(@PathVariable Integer id) {
+    public ResponseEntity<Map<String, Object>> getById(@PathVariable UUID id) {
         Map<String, Object> response = new HashMap<>();
 
         response.put("data", datasetBusiness.getById(id));
@@ -65,7 +65,7 @@ public class DatasetController {
     }
 
     @PutMapping("dataset/{id}")
-    public ResponseEntity<Map<String, Object>> update(@PathVariable Integer id,
+    public ResponseEntity<Map<String, Object>> update(@PathVariable UUID id,
                                                       @RequestBody DatasetDTO dataset) throws DefaultException {
         Map<String, Object> response = new HashMap<>();
         response.put("data", datasetBusiness.update(id, dataset));

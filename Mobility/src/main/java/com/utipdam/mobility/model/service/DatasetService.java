@@ -8,6 +8,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 
 @Service
@@ -23,7 +24,7 @@ public class DatasetService {
         return datasetRepository.findByName(name);
     }
 
-    public Optional<Dataset> findById(Integer id) {
+    public Optional<Dataset> findById(UUID id) {
         return datasetRepository.findById(id);
     }
 

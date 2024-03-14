@@ -6,9 +6,10 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
-public interface OrganizationRepository extends JpaRepository<Organization, Integer> {
+public interface OrganizationRepository extends JpaRepository<Organization, UUID> {
     List<Organization> findAll();
-    Optional<Organization> findById(@Param("id") Integer id);
+    Optional<Organization> findById(@Param("id") UUID id);
     Organization findByName(@Param("name") String name);
 }

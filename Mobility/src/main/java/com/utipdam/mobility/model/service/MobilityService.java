@@ -9,6 +9,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 
 @Service
@@ -20,7 +21,7 @@ public class MobilityService {
         this.mobilityRepository = mobilityRepository;
     }
 
-    public Optional<Mobility> findById(Integer id) {
+    public Optional<Mobility> findById(UUID id) {
         return mobilityRepository.findById(id);
     }
 
