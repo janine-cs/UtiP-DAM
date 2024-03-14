@@ -9,6 +9,10 @@ public class DatasetDTO {
     private String description;
     private Double fee;
     private Organization organization;
+    private Boolean publish;
+    private Boolean internal;
+    private Integer kValue;
+    private String resolution;
 
     public DatasetDTO() {
     }

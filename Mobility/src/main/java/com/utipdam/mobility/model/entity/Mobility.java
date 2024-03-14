@@ -20,9 +20,6 @@ public class Mobility {
     @Column(name = "resolution")
     private String resolution;
 
-    @Column(name = "data_points")
-    private Long dataPoints;
-
     @Column(name = "start_date")
     private String startDate;
 
@@ -36,6 +33,10 @@ public class Mobility {
     @JoinColumn(name = "id", nullable = false)
     private Organization organization;
 
+    @Column(name = "k_value")
+    private Integer kValue;
+
+
     public Mobility() {
     }
 
@@ -48,9 +49,6 @@ public class Mobility {
         }
         if (mobility.getEndDate()!= null) {
             this.endDate = mobility.getEndDate();
-        }
-        if (mobility.getDataPoints()!= null) {
-            this.dataPoints = mobility.getDataPoints();
         }
         if (mobility.getUpdatedOn()!= null) {
             this.updatedOn = mobility.getUpdatedOn();

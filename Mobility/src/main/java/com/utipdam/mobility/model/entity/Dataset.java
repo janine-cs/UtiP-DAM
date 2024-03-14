@@ -33,6 +33,12 @@ public class Dataset {
     @Column(name = "organization_id")
     private Integer organizationId;
 
+    @Column(name = "publish")
+    private Boolean publish;
+
+    @Column(name = "internal")
+    private Boolean internal;
+
     public Dataset() {
     }
 
@@ -51,6 +57,9 @@ public class Dataset {
         }
         if (dataset.getCountryCode()!= null) {
             this.countryCode = dataset.getCountryCode();
+        }
+        if (dataset.getPublish()!= null) {
+            this.publish = dataset.getPublish();
         }
     }
 }
