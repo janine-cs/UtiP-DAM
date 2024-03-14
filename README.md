@@ -2,4 +2,4 @@
 
 Backend services for Mobility
 
-#![alt text]()
+![alt text](https://raw.githubusercontent.com/janine-cs/UtiP-DAM/main/Mobility/src/main/resources/utip_dam.png)
