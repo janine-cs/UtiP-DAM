@@ -1,8 +1,8 @@
 package com.utipdam.mobility.model.entity;
 
+import jakarta.persistence.*;
 import lombok.Data;
 
-import javax.persistence.*;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.UUID;
