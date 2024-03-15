@@ -5,11 +5,12 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
 import lombok.Data;
 
+import java.io.Serializable;
 import java.util.UUID;
 
 @Entity(name = "organization")
 @Data
-public class Organization {
+public class Organization implements Serializable {
     @Id
     @Column(name = "id")
     private UUID id;

@@ -29,12 +29,11 @@ public class Mobility {
     @Column(name = "updated_on")
     private String updatedOn = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(Calendar.getInstance().getTime());
 
-    @OneToOne(fetch = FetchType.EAGER, cascade = CascadeType.ALL)
-    @JoinColumn(name = "id", nullable = false)
-    private Organization organization;
-
     @Column(name = "k_value")
     private Integer kValue;
+
+    @Column(name = "data_points")
+    private Long dataPoints;
 
 
     public Mobility() {

@@ -1,17 +1,16 @@
 package com.utipdam.mobility.model.entity;
 
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.Id;
+import jakarta.persistence.*;
 import lombok.Data;
 
+import java.io.Serializable;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.UUID;
 
 @Entity(name = "dataset")
 @Data
-public class Dataset {
+public class Dataset implements Serializable {
     @Id
     @Column(name = "id")
     private UUID id;
@@ -31,14 +30,19 @@ public class Dataset {
     @Column(name = "updated_on")
     private String updatedOn = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(Calendar.getInstance().getTime());
 
-    @Column(name = "organization_id")
-    private UUID organizationId;
+//    @Column(name = "organization_id")
+//    private UUID organizationId;
 
     @Column(name = "publish")
     private Boolean publish;
 
     @Column(name = "internal")
     private Boolean internal;
+
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "organization_id")
+    private Organization organization;
+
 
     public Dataset() {
     }
@@ -53,8 +57,8 @@ public class Dataset {
         if (dataset.getFee()!= null) {
             this.fee = dataset.getFee();
         }
-        if (dataset.getOrganizationId()!= null) {
-            this.organizationId = dataset.getOrganizationId();
+        if (dataset.getOrganization()!= null) {
+            this.organization = dataset.getOrganization();
         }
         if (dataset.getCountryCode()!= null) {
             this.countryCode = dataset.getCountryCode();

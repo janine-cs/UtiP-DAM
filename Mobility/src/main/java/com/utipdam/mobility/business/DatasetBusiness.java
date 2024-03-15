@@ -50,9 +50,9 @@ public class DatasetBusiness {
             if (response == null) {
                 UUID orgUUID = UUID.randomUUID();
                 Organization org = new Organization(orgUUID, dataset.getOrganization().getName(), dataset.getOrganization().getEmail());
-                ds.setOrganizationId(organizationService.save(org).getId());
+                ds.setOrganization(organizationService.save(org));
             }else{
-                ds.setOrganizationId(response.getId());
+                ds.setOrganization(response);
             }
         }
         return datasetService.save(ds);
@@ -71,15 +71,15 @@ public class DatasetBusiness {
             data.setCountryCode(dataset.getCountryCode() == null ? ds.get().getCountryCode() : dataset.getCountryCode());
             data.setFee(dataset.getFee() == null ? ds.get().getFee() : dataset.getFee());
             if (dataset.getOrganization() == null) {
-                data.setOrganizationId(ds.get().getOrganizationId());
+                data.setOrganization(ds.get().getOrganization());
             }else{
                 Organization response = organizationService.findByName(dataset.getOrganization().getName());
                 if (response == null) {
                     UUID orgUUID = UUID.randomUUID();
                     Organization org = new Organization(orgUUID, dataset.getOrganization().getName(), dataset.getOrganization().getEmail());
-                    data.setOrganizationId(organizationService.save(org).getId());
+                    data.setOrganization(organizationService.save(org));
                 }else{
-                    data.setOrganizationId(response.getId());
+                    data.setOrganization(response);
                 }
             }
 
