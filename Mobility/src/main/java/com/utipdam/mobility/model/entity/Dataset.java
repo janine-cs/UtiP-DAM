@@ -66,5 +66,8 @@ public class Dataset implements Serializable {
         if (dataset.getPublish()!= null) {
             this.publish = dataset.getPublish();
         }
+        if (dataset.getInternal()!= null) {
+            this.internal = dataset.getInternal();
+        }
     }
 }
