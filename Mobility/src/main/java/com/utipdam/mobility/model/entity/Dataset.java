@@ -3,71 +3,56 @@ package com.utipdam.mobility.model.entity;
 import jakarta.persistence.*;
 import lombok.Data;
 
-import java.io.Serializable;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.UUID;
 
 @Entity(name = "dataset")
 @Data
-public class Dataset implements Serializable {
+public class Dataset {
     @Id
     @Column(name = "id")
     private UUID id;
 
-    @Column(name = "name")
-    private String name;
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "dataset_definition_id")
+    private DatasetDefinition datasetDefinition;
 
-    @Column(name = "country_code")
-    private String countryCode;
+    @Column(name = "resolution")
+    private String resolution;
 
-    @Column(name = "description")
-    private String description;
+    @Column(name = "start_date")
+    private String startDate;
 
-    @Column(name = "fee")
-    private Double fee;
+    @Column(name = "end_date")
+    private String endDate;
 
     @Column(name = "updated_on")
     private String updatedOn = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(Calendar.getInstance().getTime());
 
-//    @Column(name = "organization_id")
-//    private UUID organizationId;
+    @Column(name = "k_value")
+    private Integer kValue;
 
-    @Column(name = "publish")
-    private Boolean publish;
-
-    @Column(name = "internal")
-    private Boolean internal;
-
-    @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "organization_id")
-    private Organization organization;
+    @Column(name = "data_points")
+    private Long dataPoints;
 
 
     public Dataset() {
     }
 
     public void update(Dataset dataset) {
-        if (dataset.getName() != null) {
-            this.name = dataset.getName();
+        if (dataset.getResolution() != null) {
+            this.resolution = dataset.getResolution();
         }
-        if (dataset.getDescription()!= null) {
-            this.description = dataset.getDescription();
+        if (dataset.getStartDate()!= null) {
+            this.startDate = dataset.getStartDate();
         }
-        if (dataset.getFee()!= null) {
-            this.fee = dataset.getFee();
+        if (dataset.getEndDate()!= null) {
+            this.endDate = dataset.getEndDate();
         }
-        if (dataset.getOrganization()!= null) {
-            this.organization = dataset.getOrganization();
-        }
-        if (dataset.getCountryCode()!= null) {
-            this.countryCode = dataset.getCountryCode();
-        }
-        if (dataset.getPublish()!= null) {
-            this.publish = dataset.getPublish();
-        }
-        if (dataset.getInternal()!= null) {
-            this.internal = dataset.getInternal();
+        if (dataset.getUpdatedOn()!= null) {
+            this.updatedOn = dataset.getUpdatedOn();
         }
     }
+
 }
