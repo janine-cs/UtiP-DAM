@@ -16,18 +16,10 @@ public class DatasetBusiness {
     @Autowired
     private DatasetService datasetService;
 
-
-    public List<Dataset> getAll() {
-        return datasetService.findAll();
-    }
-
     public List<Dataset> getAllLatest() {
         return datasetService.findAllByOrderByStartDateDesc();
     }
 
-    public Dataset getByDatasetIdLatest(UUID id) {
-        return datasetService.findByDatasetIdAndOrderByStartDateDesc(id);
-    }
 
     public Optional<Dataset> getById(UUID id) {
         return datasetService.findById(id);

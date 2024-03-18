@@ -16,6 +16,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 @RestController
 public class DatasetController {
@@ -29,15 +30,34 @@ public class DatasetController {
 
 
     @GetMapping("datasets")
-    public ResponseEntity<Map<String, Object>> getAllOrganizations() {
+    public ResponseEntity<Map<String, Object>> getAll(@RequestParam(required = false) Boolean publish) {
         Map<String, Object> response = new HashMap<>();
-        response.put("data", datasetBusiness.getAllLatest().stream().
+
+        Stream<DatasetResponseDTO> data = datasetBusiness.getAllLatest().stream().
                 map(d -> new DatasetResponseDTO(d.getId(), d.getDatasetDefinition().getName(),
-                         d.getDatasetDefinition().getDescription(), d.getDatasetDefinition().getCountryCode(),
-                         d.getDatasetDefinition().getFee(), d.getDatasetDefinition().getPublish(),
+                        d.getDatasetDefinition().getDescription(), d.getDatasetDefinition().getCountryCode(),
+                        d.getDatasetDefinition().getFee(), d.getDatasetDefinition().getPublish(),
                         d.getDatasetDefinition().getInternal(),d.getDatasetDefinition().getOrganization(), d.getDatasetDefinition().getId(),
-                        d.getResolution(), d.getStartDate(), d.getEndDate(), d.getUpdatedOn(), d.getKValue(), d.getDataPoints()))
-                .collect(Collectors.toList()));
+                        d.getResolution(), d.getStartDate(), d.getEndDate(), d.getUpdatedOn(), d.getKValue(), d.getDataPoints()));
+
+        if (publish == null){
+
+            response.put("data", data
+                    .collect(Collectors.toList()));
+        }else{
+            if (publish){
+                response.put("data", data
+                        .filter(dt -> dt.getPublish() != null && dt.getPublish())
+                        .collect(Collectors.toList()));
+            }else{
+                response.put("data", data
+                        .filter(dt -> dt.getPublish() != null && !dt.getPublish())
+                        .collect(Collectors.toList()));
+
+            }
+
+
+        }
 
         return new ResponseEntity<>(response, HttpStatus.OK);
     }

@@ -29,14 +29,6 @@ public class DatasetService {
         return datasetRepository.findAllByOrderByStartDateDesc();
     }
 
-    public Dataset findByDatasetIdAndOrderByStartDateDesc(UUID id) {
-        return datasetRepository.findByDatasetIdAndOrderByStartDateDesc(id);
-    }
-
-    public List<Dataset> findAll() {
-        return datasetRepository.findAll();
-    }
-
     public Dataset save(Dataset organization) {
         return datasetRepository.save(organization);
     }

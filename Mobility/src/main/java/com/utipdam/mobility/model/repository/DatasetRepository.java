@@ -18,8 +18,4 @@ public interface DatasetRepository extends JpaRepository<Dataset, UUID> {
             "WHERE dt.datasetDefinition.id = sub.datasetId and dt.startDate = sub.startDate")
     List<Dataset> findAllByOrderByStartDateDesc();
 
-    @Query("SELECT dt FROM dataset as dt, (SELECT d.datasetDefinition.id as datasetId, MAX(d.startDate) AS startDate " +
-            "FROM dataset as d JOIN dataset_definition dd ON d.datasetDefinition.id = dd.id GROUP BY dd.id ORDER BY startDate DESC) as sub " +
-            "WHERE dt.datasetDefinition.id = :datasetDefinitionId")
-    Dataset findByDatasetIdAndOrderByStartDateDesc(@Param("datasetDefinitionId") UUID datasetDefinitionId);
 }

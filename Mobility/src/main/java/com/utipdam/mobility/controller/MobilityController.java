@@ -154,7 +154,6 @@ public class MobilityController {
     @RequestMapping(path = "/mobility/download", method = RequestMethod.GET)
     public ResponseEntity<Resource> download(@RequestParam UUID datasetId) throws IOException {
         HttpHeaders responseHeaders = new HttpHeaders();
-
         Optional<Dataset> dataset = datasetBusiness.getById(datasetId);
         if (dataset.isPresent()) {
             Dataset datasetObj = dataset.get();
