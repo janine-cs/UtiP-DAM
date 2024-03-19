@@ -1,6 +1,10 @@
 package com.utipdam.internal.controller;
 
 
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.utipdam.internal.FileUploadUtil;
 import com.utipdam.internal.model.FileUploadResponse;
 import com.utipdam.internal.model.Dataset;
@@ -92,27 +96,34 @@ public class MobilityController {
             headers.set("Authorization", "Bearer "+ token);
 
             logger.info(token);
-            String requestJson = "{\"datasetDefinitionId\": "+datasetDefinition+", \"startDate\":"+csvDate+"," +
-                    "\"endDate\":"+csvDate+", \"resolution\":\"daily\"," +
+            String requestJson = "{\"datasetDefinitionId\": \""+datasetDefinition+"\", \"startDate\": \""+csvDate+"\" ," +
+                    "\"endDate\": \""+csvDate+"\", \"resolution\":\"daily\"," +
                     "\"k\":20}";
-
+            logger.info(requestJson);
             headers.setContentType(MediaType.APPLICATION_JSON);
 
             HttpEntity<String> entity = new HttpEntity<>(requestJson ,headers);
             try {
-                Dataset datasetObj = restTemplate.exchange(uri+ "/mobility/item",
-                        HttpMethod.POST, entity, new ParameterizedTypeReference<Dataset>() {
-                        }).getBody();
+                JsonNode node = restTemplate.exchange(uri+ "/dataset",
+                        HttpMethod.POST, entity, JsonNode.class).getBody();
 
-                if (datasetObj != null){
-                    fileName = "dataset-" + datasetObj.getId() + "-" + csvDate + ".csv";
+                if (node != null){
+                    JsonFactory jsonFactory = new JsonFactory();
+                    ObjectMapper objectMapper = new ObjectMapper(jsonFactory);
+                    JsonNode nodeResp = objectMapper.readValue(node.get("data").toString(), JsonNode.class);
+                    Dataset dataset = new ObjectMapper().readValue(nodeResp.toString(), new TypeReference<>() {
+                    });
+                    if (dataset != null){
+                        fileName = "dataset-" + dataset.getId() + "-" + dataset.getStartDate() + ".csv";
 
-                    FileUploadUtil.saveFile(fileName, file, uploadPath);
+                        FileUploadUtil.saveFile(fileName, file, uploadPath);
 
-                    File fi = new File(fileName);
-                    fi.setReadable(true, false);
-                    fi.setWritable(true, false);
+                        File fi = new File(fileName);
+                        fi.setReadable(true, false);
+                        fi.setWritable(true, false);
+                    }
                 }
+
             }catch (HttpClientErrorException e){
                 e.printStackTrace();
 //                try {
