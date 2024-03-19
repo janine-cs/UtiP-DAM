@@ -4,6 +4,7 @@ package com.utipdam.internal.controller;
 import com.utipdam.internal.FileUploadUtil;
 import com.utipdam.internal.model.FileUploadResponse;
 import com.utipdam.internal.model.Dataset;
+import com.utipdam.internal.model.Token;
 import org.apache.commons.io.filefilter.WildcardFileFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,6 +15,7 @@ import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.util.UriComponentsBuilder;
@@ -24,7 +26,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.time.LocalDateTime;
 import java.util.*;
+
+import static com.utipdam.internal.InternalApplication.token;
 
 @RestController
 public class MobilityController {
@@ -38,7 +43,7 @@ public class MobilityController {
     //internal server use. upload & anonymize
     //existing dataset
     @PostMapping("/anonymize/anonymizationJob/item")
-    public ResponseEntity<Map<String, Object>> uploadInternal(@RequestPart String dataset,
+    public ResponseEntity<Map<String, Object>> uploadInternal(@RequestPart String datasetDefinition,
                                                               @RequestPart("file") MultipartFile file) throws IOException {
 
 
@@ -47,12 +52,12 @@ public class MobilityController {
 
         File fOrg;
 
-        String path = "/data/mobility/" + dataset;
+        String path = "/data/mobility/" + datasetDefinition;
         fOrg = new File(path);
         fOrg.setReadable(true, false);
         fOrg.setWritable(true, false);
         fOrg.mkdirs();
-        Files.setPosixFilePermissions(Path.of("/data/mobility/" + dataset), PosixFilePermissions.fromString("rwxrwxrwx"));
+        Files.setPosixFilePermissions(Path.of("/data/mobility/" + datasetDefinition), PosixFilePermissions.fromString("rwxrwxrwx"));
 
 
         Path uploadPath = Paths.get(path);
@@ -83,28 +88,43 @@ public class MobilityController {
 
             RestTemplate restTemplate = new RestTemplate();
 
-            String url = UriComponentsBuilder
-                    .fromUriString(uri)
-                    .queryParam("datasetId", dataset)
-                    .queryParam("startDate", csvDate)
-                    .queryParam("endDate", csvDate)
-                    .queryParam("resolution", "dail")
-                    .queryParam("kValue", 20)
-                    .build().toUriString();
+            HttpHeaders headers = new HttpHeaders();
+            headers.set("Authorization", "Bearer "+ token);
 
-            Dataset datasetObj = restTemplate.exchange(url,
-                    HttpMethod.GET, null, new ParameterizedTypeReference<Dataset>() {
-                    }).getBody();
+            logger.info(token);
+            String requestJson = "{\"datasetDefinitionId\": "+datasetDefinition+", \"startDate\":"+csvDate+"," +
+                    "\"endDate\":"+csvDate+", \"resolution\":\"daily\"," +
+                    "\"k\":20}";
 
-            if (datasetObj != null){
-                fileName = "dataset-" + dataset + "-" + csvDate + ".csv";
+            headers.setContentType(MediaType.APPLICATION_JSON);
 
-                FileUploadUtil.saveFile(fileName, file, uploadPath);
+            HttpEntity<String> entity = new HttpEntity<>(requestJson ,headers);
+            try {
+                Dataset datasetObj = restTemplate.exchange(uri+ "/mobility/item",
+                        HttpMethod.POST, entity, new ParameterizedTypeReference<Dataset>() {
+                        }).getBody();
 
-                File fi = new File(fileName);
-                fi.setReadable(true, false);
-                fi.setWritable(true, false);
+                if (datasetObj != null){
+                    fileName = "dataset-" + datasetObj.getId() + "-" + csvDate + ".csv";
+
+                    FileUploadUtil.saveFile(fileName, file, uploadPath);
+
+                    File fi = new File(fileName);
+                    fi.setReadable(true, false);
+                    fi.setWritable(true, false);
+                }
+            }catch (HttpClientErrorException e){
+                e.printStackTrace();
+//                try {
+//                    Dataset datasetObj = restTemplate.exchange(url,
+//                            HttpMethod.GET, null, new ParameterizedTypeReference<Dataset>() {
+//                            }).getBody();
+//                }catch (HttpClientErrorException exception){
+//                    exception.printStackTrace();
+//
+//                }
             }
+
         }
 
         response.put("data", listResponse);
@@ -112,13 +132,13 @@ public class MobilityController {
     }
 
     @RequestMapping(path = "/mobility/download/internal", method = RequestMethod.GET)
-    public ResponseEntity<Resource> downloadInternal(@RequestParam UUID datasetId,
-                                                     @RequestParam UUID mobilityId) throws IOException {
+    public ResponseEntity<Resource> downloadInternal(@RequestParam UUID datasetDefinitionId,
+                                                     @RequestParam UUID datasetId) throws IOException {
         HttpHeaders responseHeaders = new HttpHeaders();
 
-        String path = "/data/mobility/" + datasetId;
+        String path = "/data/mobility/" + datasetDefinitionId;
         File dir = new File(path);
-        FileFilter fileFilter = new WildcardFileFilter("*dataset-" + mobilityId + "-*");
+        FileFilter fileFilter = new WildcardFileFilter("*dataset-" + datasetId + "-*");
         File[] files = dir.listFiles(fileFilter);
         if (files != null) {
             for (File fi : files) {

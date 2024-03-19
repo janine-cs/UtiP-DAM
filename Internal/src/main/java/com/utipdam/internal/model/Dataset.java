@@ -14,7 +14,7 @@ public class Dataset {
     private String startDate;
     private String endDate;
     private String updatedOn = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(Calendar.getInstance().getTime());
-    private Integer kValue;
+    private Integer k;
     private Long dataPoints;
 
 

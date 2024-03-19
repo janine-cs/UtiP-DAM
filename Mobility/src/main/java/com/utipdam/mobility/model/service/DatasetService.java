@@ -25,6 +25,10 @@ public class DatasetService {
         return datasetRepository.findById(id);
     }
 
+    public Dataset findByDatasetDefinitionIdAndStartDate(UUID datasetDefinitionId, String startDate) {
+        return datasetRepository.findByDatasetDefinitionIdAndStartDate(datasetDefinitionId,startDate);
+    }
+
     public List<Dataset> findAllByOrderByStartDateDesc() {
         return datasetRepository.findAllByOrderByStartDateDesc();
     }

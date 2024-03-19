@@ -4,6 +4,7 @@ import com.utipdam.mobility.business.DatasetDefinitionBusiness;
 import com.utipdam.mobility.business.DatasetBusiness;
 import com.utipdam.mobility.exception.DefaultException;
 import com.utipdam.mobility.model.DatasetDTO;
+import com.utipdam.mobility.model.DatasetDefinitionDTO;
 import com.utipdam.mobility.model.DatasetResponseDTO;
 import com.utipdam.mobility.model.entity.Dataset;
 import com.utipdam.mobility.model.entity.DatasetDefinition;
@@ -38,7 +39,7 @@ public class DatasetController {
                         d.getDatasetDefinition().getDescription(), d.getDatasetDefinition().getCountryCode(),
                         d.getDatasetDefinition().getFee(), d.getDatasetDefinition().getPublish(),
                         d.getDatasetDefinition().getInternal(),d.getDatasetDefinition().getOrganization(), d.getDatasetDefinition().getId(),
-                        d.getResolution(), d.getStartDate(), d.getEndDate(), d.getUpdatedOn(), d.getKValue(), d.getDataPoints()));
+                        d.getResolution(), d.getStartDate(), d.getEndDate(), d.getUpdatedOn(), d.getK(), d.getDataPoints()));
 
         if (publish == null){
 
@@ -72,7 +73,7 @@ public class DatasetController {
                     d.getDatasetDefinition().getDescription(), d.getDatasetDefinition().getCountryCode(),
                     d.getDatasetDefinition().getFee(), d.getDatasetDefinition().getPublish(),
                     d.getDatasetDefinition().getInternal(),d.getDatasetDefinition().getOrganization(), d.getDatasetDefinition().getId(),
-                    d.getResolution(), d.getStartDate(), d.getEndDate(), d.getUpdatedOn(), d.getKValue(), d.getDataPoints()));
+                    d.getResolution(), d.getStartDate(), d.getEndDate(), d.getUpdatedOn(), d.getK(), d.getDataPoints()));
             return new ResponseEntity<>(response, HttpStatus.OK);
         }else{
             return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
@@ -89,7 +90,7 @@ public class DatasetController {
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
     @PostMapping("datasetDefinition")
-    public ResponseEntity<Map<String, Object>> save(@RequestBody DatasetDTO dataset) {
+    public ResponseEntity<Map<String, Object>> save(@RequestBody DatasetDefinitionDTO dataset) {
         HttpHeaders responseHeaders = new HttpHeaders();
         if (dataset.getName() == null) {
             logger.error("Name is required");
@@ -113,9 +114,47 @@ public class DatasetController {
 
     @PutMapping("datasetDefinition/{id}")
     public ResponseEntity<Map<String, Object>> update(@PathVariable UUID id,
-                                                      @RequestBody DatasetDTO dataset) throws DefaultException {
+                                                      @RequestBody DatasetDefinitionDTO dataset) throws DefaultException {
         Map<String, Object> response = new HashMap<>();
         response.put("data", datasetDefinitionBusiness.update(id, dataset));
+        return new ResponseEntity<>(response, HttpStatus.OK);
+    }
+
+    @PostMapping("/dataset")
+    public ResponseEntity<Map<String, Object>>  dataset(@RequestBody DatasetDTO datasetDTO) {
+        Map<String, Object> response = new HashMap<>();
+        Dataset d = datasetBusiness.getByDatasetDefinitionIdAndStartDate(datasetDTO.getDatasetDefinitionId(), datasetDTO.getStartDate());
+        if (d == null){
+
+            Optional<DatasetDefinition> datasetDefinition = datasetDefinitionBusiness.getById(datasetDTO.getDatasetDefinitionId());
+            if (datasetDefinition.isPresent()){
+                Dataset dataset = new Dataset();
+
+                dataset.setDatasetDefinition(datasetDefinition.get());
+                dataset.setStartDate(datasetDTO.getStartDate());
+                dataset.setEndDate(datasetDTO.getEndDate());
+                dataset.setResolution(datasetDTO.getResolution());
+                dataset.setK(datasetDTO.getK());
+
+                response.put("data", datasetBusiness.save(dataset));
+            }else{
+                logger.error("Dataset definition not found");
+                return new ResponseEntity<>(HttpStatus.NOT_FOUND);
+            }
+        }else{
+            logger.error("Dataset already exists");
+            return new ResponseEntity<>(HttpStatus.CONFLICT);
+        }
+
+
+        return new ResponseEntity<>(response, HttpStatus.OK);
+    }
+
+    @PutMapping("dataset/{id}")
+    public ResponseEntity<Map<String, Object>> update(@PathVariable UUID id,
+                                                      @RequestBody DatasetDTO dataset) throws DefaultException {
+        Map<String, Object> response = new HashMap<>();
+        response.put("data", datasetBusiness.update(id, dataset));
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
 }

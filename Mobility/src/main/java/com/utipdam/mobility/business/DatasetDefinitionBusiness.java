@@ -2,7 +2,7 @@ package com.utipdam.mobility.business;
 
 import com.utipdam.mobility.config.BusinessService;
 import com.utipdam.mobility.exception.DefaultException;
-import com.utipdam.mobility.model.DatasetDTO;
+import com.utipdam.mobility.model.DatasetDefinitionDTO;
 import com.utipdam.mobility.model.entity.DatasetDefinition;
 import com.utipdam.mobility.model.entity.Organization;
 import com.utipdam.mobility.model.service.DatasetDefinitionService;
@@ -34,7 +34,7 @@ public class DatasetDefinitionBusiness {
         return datasetDefinitionService.findById(id);
     }
 
-    public DatasetDefinition save(DatasetDTO dataset){
+    public DatasetDefinition save(DatasetDefinitionDTO dataset){
         UUID uuid = UUID.randomUUID();
         DatasetDefinition ds = new DatasetDefinition();
         ds.setId(uuid);
@@ -58,7 +58,7 @@ public class DatasetDefinitionBusiness {
         return datasetDefinitionService.save(ds);
     }
 
-    public DatasetDefinition update(UUID id, DatasetDTO dataset) throws DefaultException {
+    public DatasetDefinition update(UUID id, DatasetDefinitionDTO dataset) throws DefaultException {
         if (id == null) {
             throw new DefaultException("id can not be null");
         }

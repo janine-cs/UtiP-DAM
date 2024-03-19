@@ -2,6 +2,7 @@ package com.utipdam.mobility.business;
 
 import com.utipdam.mobility.config.BusinessService;
 import com.utipdam.mobility.exception.DefaultException;
+import com.utipdam.mobility.model.DatasetDTO;
 import com.utipdam.mobility.model.entity.Dataset;
 import com.utipdam.mobility.model.service.DatasetService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,20 +26,25 @@ public class DatasetBusiness {
         return datasetService.findById(id);
     }
 
+    public Dataset getByDatasetDefinitionIdAndStartDate(UUID datasetDefinitionId, String startDate) {
+        return datasetService.findByDatasetDefinitionIdAndStartDate(datasetDefinitionId, startDate);
+    }
+
+
     public Dataset save(Dataset dataset){
         UUID uuid = UUID.randomUUID();
         dataset.setId(uuid);
         return datasetService.save(dataset);
     }
 
-    public Dataset update(UUID id, Dataset mobility) throws DefaultException {
+    public Dataset update(UUID id, DatasetDTO dataset) throws DefaultException {
         if (id == null) {
             throw new DefaultException("id can not be null");
         }
-        Optional<Dataset> mobilityOptional = datasetService.findById(id);
-        if (mobilityOptional.isPresent()){
-            mobilityOptional.get().update(mobility);
-            return datasetService.save(mobilityOptional.get());
+        Optional<Dataset> datasetOptional = datasetService.findById(id);
+        if (datasetOptional.isPresent()){
+            datasetOptional.get().update(dataset);
+            return datasetService.save(datasetOptional.get());
         }else{
             return null;
         }

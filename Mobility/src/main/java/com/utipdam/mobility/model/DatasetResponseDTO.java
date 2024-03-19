@@ -19,7 +19,7 @@ public class DatasetResponseDTO {
     private String startDate;
     private String endDate;
     private String updatedOn;
-    private Integer kValue;
+    private Integer k;
     private Long dataPoints;
 
     public DatasetResponseDTO() {
@@ -29,7 +29,7 @@ public class DatasetResponseDTO {
                               String countryCode, Double fee, Boolean publish,
                               Boolean internal, Organization organization, UUID datasetDefinitionId,
                               String resolution, String startDate, String endDate,
-                              String updatedOn, Integer kValue, Long dataPoints) {
+                              String updatedOn, Integer k, Long dataPoints) {
         this.id = id;
         this.name = name;
         this.description = description;
@@ -43,7 +43,7 @@ public class DatasetResponseDTO {
         this.startDate = startDate;
         this.endDate = endDate;
         this.updatedOn = updatedOn;
-        this.kValue = kValue;
+        this.k = k;
         this.dataPoints = dataPoints;
     }
 }

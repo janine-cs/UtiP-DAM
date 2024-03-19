@@ -4,6 +4,7 @@ import com.utipdam.mobility.FileUploadUtil;
 import com.utipdam.mobility.business.DatasetDefinitionBusiness;
 import com.utipdam.mobility.business.DatasetBusiness;
 import com.utipdam.mobility.model.DatasetDTO;
+import com.utipdam.mobility.model.DatasetDefinitionDTO;
 import com.utipdam.mobility.model.FileUploadResponse;
 import com.utipdam.mobility.model.entity.Dataset;
 import com.utipdam.mobility.model.entity.DatasetDefinition;
@@ -50,7 +51,7 @@ public class MobilityController {
         Map<String, Object> response = new HashMap<>();
 
         List<FileUploadResponse> listResponse = new ArrayList<>();
-        DatasetDTO dto = new DatasetDTO();
+        DatasetDefinitionDTO dto = new DatasetDefinitionDTO();
         dto.setName("dash-upload-" + getRandomNumberString());
 
         DatasetDefinition ds = datasetDefinitionBusiness.save(dto);
@@ -121,32 +122,13 @@ public class MobilityController {
     }
 
 
-    @RequestMapping(path = "/mobility/item", method = RequestMethod.POST)
-    public Dataset dataset(@RequestParam UUID datasetDefinitionId, @RequestParam String startDate,
-                             @RequestParam String endDate, @RequestParam String resolution, @RequestParam Integer kValue) {
 
-        Optional<DatasetDefinition> datasetDefinition = datasetDefinitionBusiness.getById(datasetDefinitionId);
-        if (datasetDefinition.isPresent()){
-            Dataset dataset = new Dataset();
-
-            dataset.setDatasetDefinition(dataset.getDatasetDefinition());
-            dataset.setStartDate(startDate);
-            dataset.setEndDate(endDate);
-            dataset.setResolution(resolution);
-            dataset.setKValue(kValue);
-
-            return datasetBusiness.save(dataset);
-        }else{
-            return null;
-        }
-
-    }
 
 
     //TODO
     @RequestMapping(path = "/mobility/anonymize", method = RequestMethod.GET)
     public ResponseEntity<Resource> anonymize(@RequestParam UUID datasetId,
-                                              @RequestParam String resolution, @RequestParam Integer kValue) {
+                                              @RequestParam String resolution, @RequestParam Integer k) {
         return null;
     }
 
@@ -225,7 +207,7 @@ public class MobilityController {
     //TODO for client use
     //creates new dataset and mobility record
     @PostMapping(path = "/anonymize/anonymizationJob")
-    public ResponseEntity<Resource> anonymizeExternalAPI(@RequestPart DatasetDTO dataset,
+    public ResponseEntity<Resource> anonymizeExternalAPI(@RequestPart DatasetDefinitionDTO dataset,
                                                          @RequestPart("file") MultipartFile file) throws IOException {
 
         if (dataset.getName() == null) {
@@ -275,7 +257,7 @@ public class MobilityController {
             dt.setDatasetDefinition(ds);
             dt.setStartDate(csvDate);
             dt.setEndDate(csvDate);
-            dt.setKValue(dataset.getKValue());
+            dt.setK(dataset.getK());
 
             Dataset d = datasetBusiness.save(dt);
 

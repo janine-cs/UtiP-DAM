@@ -1,5 +1,6 @@
 package com.utipdam.mobility.model.entity;
 
+import com.utipdam.mobility.model.DatasetDTO;
 import jakarta.persistence.*;
 import lombok.Data;
 
@@ -30,8 +31,8 @@ public class Dataset {
     @Column(name = "updated_on")
     private String updatedOn = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(Calendar.getInstance().getTime());
 
-    @Column(name = "k_value")
-    private Integer kValue;
+    @Column(name = "k")
+    private Integer k;
 
     @Column(name = "data_points")
     private Long dataPoints;
@@ -40,18 +41,21 @@ public class Dataset {
     public Dataset() {
     }
 
-    public void update(Dataset dataset) {
+    public void update(DatasetDTO dataset) {
         if (dataset.getResolution() != null) {
             this.resolution = dataset.getResolution();
         }
-        if (dataset.getStartDate()!= null) {
+        if (dataset.getStartDate() != null) {
             this.startDate = dataset.getStartDate();
         }
-        if (dataset.getEndDate()!= null) {
+        if (dataset.getEndDate() != null) {
             this.endDate = dataset.getEndDate();
         }
-        if (dataset.getUpdatedOn()!= null) {
-            this.updatedOn = dataset.getUpdatedOn();
+        if (dataset.getDataPoints() != null) {
+            this.dataPoints = dataset.getDataPoints();
+        }
+        if (dataset.getK() != null) {
+            this.k = dataset.getK();
         }
     }
 
