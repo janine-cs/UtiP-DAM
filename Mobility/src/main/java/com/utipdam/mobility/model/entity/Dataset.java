@@ -4,6 +4,7 @@ import com.utipdam.mobility.model.DatasetDTO;
 import jakarta.persistence.*;
 import lombok.Data;
 
+import java.sql.Date;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.UUID;
@@ -23,10 +24,10 @@ public class Dataset {
     private String resolution;
 
     @Column(name = "start_date")
-    private String startDate;
+    private Date startDate;
 
     @Column(name = "end_date")
-    private String endDate;
+    private Date endDate;
 
     @Column(name = "updated_on")
     private String updatedOn = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(Calendar.getInstance().getTime());

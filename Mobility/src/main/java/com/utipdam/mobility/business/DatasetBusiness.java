@@ -3,13 +3,16 @@ package com.utipdam.mobility.business;
 import com.utipdam.mobility.config.BusinessService;
 import com.utipdam.mobility.exception.DefaultException;
 import com.utipdam.mobility.model.DatasetDTO;
+import com.utipdam.mobility.model.DatasetListDTO;
 import com.utipdam.mobility.model.entity.Dataset;
 import com.utipdam.mobility.model.service.DatasetService;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import java.sql.Date;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 
 @BusinessService
@@ -21,12 +24,18 @@ public class DatasetBusiness {
         return datasetService.findAllByOrderByStartDateDesc();
     }
 
+    public List<DatasetListDTO> getAllByDatasetDefinitionId(UUID datasetDefinitionId) {
+        return datasetService.findAllDatasetDefinitionId(datasetDefinitionId).stream().map(d -> new DatasetListDTO(d.getId(),
+                d.getResolution(), d.getStartDate(), d.getEndDate(), d.getK(), d.getDataPoints(), d.getUpdatedOn())).collect(Collectors.toList());
+    }
+
+
 
     public Optional<Dataset> getById(UUID id) {
         return datasetService.findById(id);
     }
 
-    public Dataset getByDatasetDefinitionIdAndStartDate(UUID datasetDefinitionId, String startDate) {
+    public Dataset getByDatasetDefinitionIdAndStartDate(UUID datasetDefinitionId, Date startDate) {
         return datasetService.findByDatasetDefinitionIdAndStartDate(datasetDefinitionId, startDate);
     }
 

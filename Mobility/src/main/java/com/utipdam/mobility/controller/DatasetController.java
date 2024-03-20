@@ -35,11 +35,13 @@ public class DatasetController {
         Map<String, Object> response = new HashMap<>();
 
         Stream<DatasetResponseDTO> data = datasetBusiness.getAllLatest().stream().
-                map(d -> new DatasetResponseDTO(d.getId(), d.getDatasetDefinition().getName(),
-                        d.getDatasetDefinition().getDescription(), d.getDatasetDefinition().getCountryCode(),
-                        d.getDatasetDefinition().getFee(), d.getDatasetDefinition().getPublish(),
-                        d.getDatasetDefinition().getInternal(),d.getDatasetDefinition().getOrganization(), d.getDatasetDefinition().getId(),
-                        d.getResolution(), d.getStartDate(), d.getEndDate(), d.getUpdatedOn(), d.getK(), d.getDataPoints()));
+                map(d ->
+                     new DatasetResponseDTO(d.getDatasetDefinition().getName(),
+                            d.getDatasetDefinition().getDescription(), d.getDatasetDefinition().getCountryCode(),
+                            d.getDatasetDefinition().getFee(), d.getDatasetDefinition().getPublish(),
+                            d.getDatasetDefinition().getOrganization(), d.getDatasetDefinition().getId(),
+                            d.getUpdatedOn(), null, datasetBusiness.getAllByDatasetDefinitionId(d.getDatasetDefinition().getId()))
+                );
 
         if (publish == null){
 
@@ -69,11 +71,11 @@ public class DatasetController {
         Optional<Dataset> opt = datasetBusiness.getById(id);
         if (opt.isPresent()){
             Dataset d = opt.get();
-            response.put("data", new DatasetResponseDTO(d.getId(), d.getDatasetDefinition().getName(),
+            response.put("data", new DatasetResponseDTO(d.getDatasetDefinition().getName(),
                     d.getDatasetDefinition().getDescription(), d.getDatasetDefinition().getCountryCode(),
                     d.getDatasetDefinition().getFee(), d.getDatasetDefinition().getPublish(),
-                    d.getDatasetDefinition().getInternal(),d.getDatasetDefinition().getOrganization(), d.getDatasetDefinition().getId(),
-                    d.getResolution(), d.getStartDate(), d.getEndDate(), d.getUpdatedOn(), d.getK(), d.getDataPoints()));
+                    d.getDatasetDefinition().getOrganization(), d.getDatasetDefinition().getId(),
+                    d.getUpdatedOn(), null, datasetBusiness.getAllByDatasetDefinitionId(d.getDatasetDefinition().getId())));
             return new ResponseEntity<>(response, HttpStatus.OK);
         }else{
             return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);

@@ -2,13 +2,14 @@ package com.utipdam.mobility.model;
 
 import lombok.Data;
 
+import java.sql.Date;
 import java.util.UUID;
 
 @Data
 public class DatasetDTO {
     private UUID datasetDefinitionId;
-    private String startDate;
-    private String endDate;
+    private Date startDate;
+    private Date endDate;
     private String resolution;
     private Integer k;
     private Long dataPoints;

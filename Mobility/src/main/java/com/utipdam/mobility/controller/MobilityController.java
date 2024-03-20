@@ -3,6 +3,7 @@ package com.utipdam.mobility.controller;
 import com.utipdam.mobility.FileUploadUtil;
 import com.utipdam.mobility.business.DatasetDefinitionBusiness;
 import com.utipdam.mobility.business.DatasetBusiness;
+import com.utipdam.mobility.config.RestTemplateClient;
 import com.utipdam.mobility.model.DatasetDefinitionDTO;
 import com.utipdam.mobility.model.FileUploadResponse;
 import com.utipdam.mobility.model.entity.Dataset;
@@ -17,11 +18,10 @@ import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.*;
-import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.util.UriComponentsBuilder;
+
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -29,6 +29,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.sql.Date;
 import java.util.*;
 
 @RestController
@@ -94,8 +95,8 @@ public class MobilityController {
 
             Dataset dataset = new Dataset();
             dataset.setDatasetDefinition(ds);
-            dataset.setStartDate(csvDate);
-            dataset.setEndDate(csvDate);
+            dataset.setStartDate(Date.valueOf(csvDate));
+            dataset.setEndDate(Date.valueOf(csvDate));
             dataset.setResolution("daily");
 
             Dataset d = datasetBusiness.save(dataset);
@@ -122,31 +123,32 @@ public class MobilityController {
 
 
     //TODO
-    @RequestMapping(path = "/mobility/anonymize", method = RequestMethod.GET)
+    @GetMapping("/mobility/anonymize")
     public ResponseEntity<Resource> anonymize(@RequestParam UUID datasetId,
                                               @RequestParam String resolution, @RequestParam Integer k) {
         return null;
     }
 
-    @RequestMapping(path = "/mobility/download", method = RequestMethod.GET)
+    @GetMapping("/mobility/download")
     public ResponseEntity<Resource> download(@RequestParam UUID datasetId) throws IOException {
         HttpHeaders responseHeaders = new HttpHeaders();
         Optional<Dataset> dataset = datasetBusiness.getById(datasetId);
         if (dataset.isPresent()) {
             Dataset datasetObj = dataset.get();
+            //logger.info(datasetObj.getId().toString());
             Optional<DatasetDefinition> df = datasetDefinitionBusiness.getById(datasetObj.getDatasetDefinition().getId());
 
             if (df.isPresent()) {
                 DatasetDefinition definitionObj = df.get();
-
+                //logger.info(definitionObj.getId().toString());
                 if ((definitionObj.getInternal() != null && !definitionObj.getInternal()) || definitionObj.getInternal() == null) {
                     logger.info(definitionObj.getInternal().toString());
                     String path = "/data/mobility/" + datasetObj.getDatasetDefinition().getId();
                     File dir = new File(path);
                     FileFilter fileFilter = new WildcardFileFilter("*dataset-" + datasetId + "-*");
                     File[] files = dir.listFiles(fileFilter);
-                    logger.info("*dataset-" + datasetId + "-*");
-                    logger.info("files - " + files.length);
+                    //logger.info("*dataset-" + datasetId + "-*");
+                    //logger.info("files - " + files.length);
                     if (files != null) {
                         for (File fi : files) {
                             BufferedReader file = new BufferedReader(
@@ -177,17 +179,21 @@ public class MobilityController {
                 } else {
                     logger.info("downloading from internal server");
                     //download from internal archive server
-                    RestTemplate restTemplate = new RestTemplate();
+                    RestTemplateClient restTemplate = new RestTemplateClient();
 
                     String url = UriComponentsBuilder
                             .fromUriString(uri)
-                            .queryParam("datasetDefinitionId", definitionObj.getId())
+                            .queryParam("datasetDefinitionId", datasetObj.getDatasetDefinition().getId())
                             .queryParam("datasetId", datasetObj.getId())
                             .build().toUriString();
+                        try {
+                            return restTemplate.restTemplate().exchange(url,
+                                    HttpMethod.GET, null, new ParameterizedTypeReference<ResponseEntity<Resource>>() {
+                                    }).getBody();
 
-                    return restTemplate.exchange(url,
-                            HttpMethod.GET, null, new ParameterizedTypeReference<ResponseEntity<Resource>>() {
-                            }).getBody();
+                        }catch(Exception ex){
+                            ex.printStackTrace();
+                        }
 
                 }
             }
@@ -201,7 +207,7 @@ public class MobilityController {
 
     //TODO for client use
     //creates new dataset and mobility record
-    @PostMapping(path = "/anonymize/anonymizationJob")
+    @PostMapping("/anonymize/anonymizationJob")
     public ResponseEntity<Resource> anonymizeExternalAPI(@RequestPart DatasetDefinitionDTO dataset,
                                                          @RequestPart("file") MultipartFile file) throws IOException {
 
@@ -250,8 +256,8 @@ public class MobilityController {
             Dataset dt = new Dataset();
             dt.setResolution(dataset.getResolution());
             dt.setDatasetDefinition(ds);
-            dt.setStartDate(csvDate);
-            dt.setEndDate(csvDate);
+            dt.setStartDate(Date.valueOf(csvDate));
+            dt.setEndDate(Date.valueOf(csvDate));
             dt.setK(dataset.getK());
 
             Dataset d = datasetBusiness.save(dt);

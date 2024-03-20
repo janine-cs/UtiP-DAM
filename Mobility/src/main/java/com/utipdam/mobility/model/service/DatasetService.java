@@ -7,6 +7,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 
+import java.sql.Date;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -25,12 +26,16 @@ public class DatasetService {
         return datasetRepository.findById(id);
     }
 
-    public Dataset findByDatasetDefinitionIdAndStartDate(UUID datasetDefinitionId, String startDate) {
+    public Dataset findByDatasetDefinitionIdAndStartDate(UUID datasetDefinitionId, Date startDate) {
         return datasetRepository.findByDatasetDefinitionIdAndStartDate(datasetDefinitionId,startDate);
     }
 
     public List<Dataset> findAllByOrderByStartDateDesc() {
         return datasetRepository.findAllByOrderByStartDateDesc();
+    }
+
+    public List<Dataset> findAllDatasetDefinitionId(UUID datasetDefinitionId) {
+        return datasetRepository.findAllByDatasetDefinition_Id(datasetDefinitionId);
     }
 
     public Dataset save(Dataset organization) {

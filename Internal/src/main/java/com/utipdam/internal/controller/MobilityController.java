@@ -91,24 +91,24 @@ public class MobilityController {
         //headers.set("Authorization", "Bearer "+ token);
 
         //logger.info(token);
-        String requestJson = "{\"datasetDefinitionId\": \""+datasetDefinition+"\", \"startDate\": \""+csvDate+"\" ," +
-                "\"endDate\": \""+csvDate+"\", \"resolution\":\"daily\"," +
+        String requestJson = "{\"datasetDefinitionId\": \"" + datasetDefinition + "\", \"startDate\": \"" + csvDate + "\" ," +
+                "\"endDate\": \"" + csvDate + "\", \"resolution\":\"daily\"," +
                 "\"k\":20}";
         //logger.info(requestJson);
         headers.setContentType(MediaType.APPLICATION_JSON);
 
-        HttpEntity<String> entity = new HttpEntity<>(requestJson ,headers);
+        HttpEntity<String> entity = new HttpEntity<>(requestJson, headers);
         try {
-            JsonNode node = restTemplate.exchange(uri+ "/dataset",
+            JsonNode node = restTemplate.exchange(uri + "/dataset",
                     HttpMethod.POST, entity, JsonNode.class).getBody();
 
-            if (node != null){
+            if (node != null) {
                 JsonFactory jsonFactory = new JsonFactory();
                 ObjectMapper objectMapper = new ObjectMapper(jsonFactory);
                 JsonNode nodeResp = objectMapper.readValue(node.get("data").toString(), JsonNode.class);
                 Dataset dataset = new ObjectMapper().readValue(nodeResp.toString(), new TypeReference<>() {
                 });
-                if (dataset != null){
+                if (dataset != null) {
                     fileName = "dataset-" + dataset.getId() + "-" + dataset.getStartDate() + ".csv";
 
                     FileUploadUtil.saveFile(fileName, file, uploadPath);
@@ -119,7 +119,7 @@ public class MobilityController {
                 }
             }
 
-        }catch (HttpClientErrorException e){
+        } catch (HttpClientErrorException e) {
             e.printStackTrace();
 //                try {
 //                    Dataset datasetObj = restTemplate.exchange(url,
@@ -135,7 +135,7 @@ public class MobilityController {
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
 
-    @RequestMapping(path = "/mobility/download", method = RequestMethod.GET)
+    @GetMapping("/mobility/download")
     public ResponseEntity<Resource> downloadInternal(@RequestParam UUID datasetDefinitionId,
                                                      @RequestParam UUID datasetId) throws IOException {
         HttpHeaders responseHeaders = new HttpHeaders();
