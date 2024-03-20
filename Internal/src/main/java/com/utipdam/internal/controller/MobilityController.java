@@ -8,12 +8,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.utipdam.internal.FileUploadUtil;
 import com.utipdam.internal.model.FileUploadResponse;
 import com.utipdam.internal.model.Dataset;
-import com.utipdam.internal.model.Token;
 import org.apache.commons.io.filefilter.WildcardFileFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
@@ -22,7 +20,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.util.UriComponentsBuilder;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -30,7 +27,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.PosixFilePermissions;
-import java.time.LocalDateTime;
 import java.util.*;
 
 import static com.utipdam.internal.InternalApplication.token;
@@ -46,7 +42,7 @@ public class MobilityController {
 
     //internal server use. upload & anonymize
     //existing dataset
-    @PostMapping("/anonymize/anonymizationJob/item")
+    @PostMapping("/mobility/anonymization")
     public ResponseEntity<Map<String, Object>> uploadInternal(@RequestPart String datasetDefinition,
                                                               @RequestPart("file") MultipartFile file) throws IOException {
 
@@ -66,66 +62,65 @@ public class MobilityController {
 
         Path uploadPath = Paths.get(path);
         String fileName;
-        if (path != null) {
-            BufferedReader br;
-            String csvDate = null;
+        BufferedReader br;
+        String csvDate = null;
 
-            try {
-                String line;
-                InputStream is = file.getInputStream();
-                br = new BufferedReader(new InputStreamReader(is));
-                line = br.readLine();
-                String[] nextRecord;
-                if (line != null) {
-                    nextRecord = line.split(",");
-                    int dateIndex = Arrays.asList(nextRecord).indexOf(START_TIME);
-                    if (dateIndex > 0 && (line = br.readLine()) != null) {
-                        csvDate = line.split(",")[dateIndex];
-                        csvDate = csvDate.split(" ")[0];
-                    }
+        try {
+            String line;
+            InputStream is = file.getInputStream();
+            br = new BufferedReader(new InputStreamReader(is));
+            line = br.readLine();
+            String[] nextRecord;
+            if (line != null) {
+                nextRecord = line.split(",");
+                int dateIndex = Arrays.asList(nextRecord).indexOf(START_TIME);
+                if (dateIndex > 0 && (line = br.readLine()) != null) {
+                    csvDate = line.split(",")[dateIndex];
+                    csvDate = csvDate.split(" ")[0];
                 }
-
-            } catch (IOException e) {
-                e.printStackTrace();
-                logger.error(e.getMessage());
             }
 
-            RestTemplate restTemplate = new RestTemplate();
+        } catch (IOException e) {
+            e.printStackTrace();
+            logger.error(e.getMessage());
+        }
 
-            HttpHeaders headers = new HttpHeaders();
-            headers.set("Authorization", "Bearer "+ token);
+        RestTemplate restTemplate = new RestTemplate();
 
-            logger.info(token);
-            String requestJson = "{\"datasetDefinitionId\": \""+datasetDefinition+"\", \"startDate\": \""+csvDate+"\" ," +
-                    "\"endDate\": \""+csvDate+"\", \"resolution\":\"daily\"," +
-                    "\"k\":20}";
-            logger.info(requestJson);
-            headers.setContentType(MediaType.APPLICATION_JSON);
+        HttpHeaders headers = new HttpHeaders();
+        //headers.set("Authorization", "Bearer "+ token);
 
-            HttpEntity<String> entity = new HttpEntity<>(requestJson ,headers);
-            try {
-                JsonNode node = restTemplate.exchange(uri+ "/dataset",
-                        HttpMethod.POST, entity, JsonNode.class).getBody();
+        //logger.info(token);
+        String requestJson = "{\"datasetDefinitionId\": \""+datasetDefinition+"\", \"startDate\": \""+csvDate+"\" ," +
+                "\"endDate\": \""+csvDate+"\", \"resolution\":\"daily\"," +
+                "\"k\":20}";
+        //logger.info(requestJson);
+        headers.setContentType(MediaType.APPLICATION_JSON);
 
-                if (node != null){
-                    JsonFactory jsonFactory = new JsonFactory();
-                    ObjectMapper objectMapper = new ObjectMapper(jsonFactory);
-                    JsonNode nodeResp = objectMapper.readValue(node.get("data").toString(), JsonNode.class);
-                    Dataset dataset = new ObjectMapper().readValue(nodeResp.toString(), new TypeReference<>() {
-                    });
-                    if (dataset != null){
-                        fileName = "dataset-" + dataset.getId() + "-" + dataset.getStartDate() + ".csv";
+        HttpEntity<String> entity = new HttpEntity<>(requestJson ,headers);
+        try {
+            JsonNode node = restTemplate.exchange(uri+ "/dataset",
+                    HttpMethod.POST, entity, JsonNode.class).getBody();
 
-                        FileUploadUtil.saveFile(fileName, file, uploadPath);
+            if (node != null){
+                JsonFactory jsonFactory = new JsonFactory();
+                ObjectMapper objectMapper = new ObjectMapper(jsonFactory);
+                JsonNode nodeResp = objectMapper.readValue(node.get("data").toString(), JsonNode.class);
+                Dataset dataset = new ObjectMapper().readValue(nodeResp.toString(), new TypeReference<>() {
+                });
+                if (dataset != null){
+                    fileName = "dataset-" + dataset.getId() + "-" + dataset.getStartDate() + ".csv";
 
-                        File fi = new File(fileName);
-                        fi.setReadable(true, false);
-                        fi.setWritable(true, false);
-                    }
+                    FileUploadUtil.saveFile(fileName, file, uploadPath);
+
+                    File fi = new File(fileName);
+                    fi.setReadable(true, false);
+                    fi.setWritable(true, false);
                 }
+            }
 
-            }catch (HttpClientErrorException e){
-                e.printStackTrace();
+        }catch (HttpClientErrorException e){
+            e.printStackTrace();
 //                try {
 //                    Dataset datasetObj = restTemplate.exchange(url,
 //                            HttpMethod.GET, null, new ParameterizedTypeReference<Dataset>() {
@@ -134,15 +129,13 @@ public class MobilityController {
 //                    exception.printStackTrace();
 //
 //                }
-            }
-
         }
 
         response.put("data", listResponse);
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
 
-    @RequestMapping(path = "/mobility/download/internal", method = RequestMethod.GET)
+    @RequestMapping(path = "/mobility/download", method = RequestMethod.GET)
     public ResponseEntity<Resource> downloadInternal(@RequestParam UUID datasetDefinitionId,
                                                      @RequestParam UUID datasetId) throws IOException {
         HttpHeaders responseHeaders = new HttpHeaders();

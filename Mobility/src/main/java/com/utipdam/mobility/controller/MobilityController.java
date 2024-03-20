@@ -121,16 +121,12 @@ public class MobilityController {
     }
 
 
-
-
-
     //TODO
     @RequestMapping(path = "/mobility/anonymize", method = RequestMethod.GET)
     public ResponseEntity<Resource> anonymize(@RequestParam UUID datasetId,
                                               @RequestParam String resolution, @RequestParam Integer k) {
         return null;
     }
-
 
     @RequestMapping(path = "/mobility/download", method = RequestMethod.GET)
     public ResponseEntity<Resource> download(@RequestParam UUID datasetId) throws IOException {
@@ -296,109 +292,6 @@ public class MobilityController {
                 .contentLength(stream.available())
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
                 .body(resource);
-    }
-
-
-    //internal server use. upload & anonymize
-    //existing dataset
-    @PostMapping("/anonymize/anonymizationJob/item")
-    public ResponseEntity<Map<String, Object>> uploadInternal(@RequestPart String dataset,
-                                                              @RequestPart("file") MultipartFile file) throws IOException {
-
-        List<FileUploadResponse> listResponse = new ArrayList<>();
-        Map<String, Object> response = new HashMap<>();
-
-        File fOrg;
-
-        String path = "/data/mobility/" + dataset;
-        fOrg = new File(path);
-        fOrg.setReadable(true, false);
-        fOrg.setWritable(true, false);
-        fOrg.mkdirs();
-        Files.setPosixFilePermissions(Path.of("/data/mobility/" + dataset), PosixFilePermissions.fromString("rwxrwxrwx"));
-
-
-        Path uploadPath = Paths.get(path);
-
-        if (path != null) {
-            int idx = file.getOriginalFilename().indexOf("_");
-            int idxEnd = file.getOriginalFilename().indexOf(".");
-            String date = file.getOriginalFilename().substring(idx + 1, idxEnd);
-            File dir = new File(path);
-            FileFilter fileFilter = new WildcardFileFilter("*_" + date + "*");
-            File[] files = dir.listFiles(fileFilter);
-            if (files != null) {
-                for (File fi : files) {
-                    if (fi.delete()) {
-                        logger.info("Deleted " + fi.getAbsolutePath());
-                    }
-                }
-            }
-
-            String fileName = StringUtils.cleanPath(file.getOriginalFilename());
-            long size = file.getSize();
-
-            FileUploadUtil.saveFile(fileName, file, uploadPath);
-
-            FileUploadResponse fileUploadResponse = new FileUploadResponse();
-            fileUploadResponse.setFileName(fileName);
-            fileUploadResponse.setSize(size);
-            listResponse.add(fileUploadResponse);
-
-            files = dir.listFiles(fileFilter);
-            if (files != null) {
-                for (File fi : files) {
-                    fi.setReadable(true, false);
-                    fi.setWritable(true, false);
-                }
-            }
-
-        }
-
-        response.put("data", listResponse);
-        return new ResponseEntity<>(response, HttpStatus.OK);
-    }
-
-    @RequestMapping(path = "/mobility/download/internal", method = RequestMethod.GET)
-    public ResponseEntity<Resource> downloadInternal(@RequestParam UUID datasetDefinitionId,
-                                                     @RequestParam UUID datasetId) throws IOException {
-        HttpHeaders responseHeaders = new HttpHeaders();
-
-        String path = "/data/mobility/" + datasetDefinitionId;
-        File dir = new File(path);
-        FileFilter fileFilter = new WildcardFileFilter("*dataset-" + datasetId + "-*");
-        File[] files = dir.listFiles(fileFilter);
-        if (files != null) {
-            for (File fi : files) {
-
-                BufferedReader file = new BufferedReader(
-                        new InputStreamReader(new FileSystemResource(fi).getInputStream()));
-                StringBuffer inputBuffer = new StringBuffer();
-                String line;
-
-                while ((line = file.readLine()) != null) {
-                    inputBuffer.append(line);
-                    inputBuffer.append('\n');
-                }
-                file.close();
-                String inputStr = inputBuffer.toString();
-
-                ContentDisposition contentDisposition = ContentDisposition.builder("inline")
-                        .filename(fi.getName())
-                        .build();
-                responseHeaders.setContentDisposition(contentDisposition);
-                InputStream stream = new ByteArrayInputStream(inputStr.getBytes(StandardCharsets.UTF_8));
-                InputStreamResource resource = new InputStreamResource(stream);
-                return ResponseEntity.ok()
-                        .headers(responseHeaders)
-                        .contentLength(stream.available())
-                        .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                        .body(resource);
-            }
-        }
-
-
-        return null;
     }
 
     public static String getRandomNumberString() {

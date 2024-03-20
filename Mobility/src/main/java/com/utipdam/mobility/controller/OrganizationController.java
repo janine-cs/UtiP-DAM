@@ -22,7 +22,7 @@ public class OrganizationController {
     @Autowired
     private OrganizationBusiness organizationBusiness;
 
-    @GetMapping("organizations")
+    @GetMapping("/organizations")
     public ResponseEntity<Map<String, Object>> getAllOrganizations(@RequestParam(required = false) String name) {
         Map<String, Object> response = new HashMap<>();
         if (name == null){
@@ -34,7 +34,7 @@ public class OrganizationController {
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
 
-    @GetMapping("organization/{id}")
+    @GetMapping("/organization/{id}")
     public ResponseEntity<Map<String, Object>> getById(@PathVariable UUID id) {
         Map<String, Object> response = new HashMap<>();
 
@@ -42,7 +42,7 @@ public class OrganizationController {
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
 
-    @PostMapping("organization")
+    @PostMapping("/organization")
     public ResponseEntity<Map<String, Object>> save(@RequestBody Organization organization) {
         HttpHeaders responseHeaders = new HttpHeaders();
         if (organization.getName() == null) {
@@ -65,7 +65,7 @@ public class OrganizationController {
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
 
-    @PutMapping("organization/{id}")
+    @PutMapping("/organization/{id}")
     public ResponseEntity<Map<String, Object>> update(@PathVariable UUID id,
                                                       @RequestBody Organization organization) throws DefaultException {
         Map<String, Object> response = new HashMap<>();

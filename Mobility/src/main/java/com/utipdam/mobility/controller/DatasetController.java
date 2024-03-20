@@ -30,7 +30,7 @@ public class DatasetController {
     private DatasetBusiness datasetBusiness;
 
 
-    @GetMapping("datasets")
+    @GetMapping("/datasets")
     public ResponseEntity<Map<String, Object>> getAll(@RequestParam(required = false) Boolean publish) {
         Map<String, Object> response = new HashMap<>();
 
@@ -63,7 +63,7 @@ public class DatasetController {
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
 
-    @GetMapping("dataset/{id}")
+    @GetMapping("/dataset/{id}")
     public ResponseEntity<Map<String, Object>> getById(@PathVariable UUID id) {
         Map<String, Object> response = new HashMap<>();
         Optional<Dataset> opt = datasetBusiness.getById(id);
@@ -82,14 +82,14 @@ public class DatasetController {
     }
 
 
-    @GetMapping("datasetDefinition/{id}")
+    @GetMapping("/datasetDefinition/{id}")
     public ResponseEntity<Map<String, Object>> getDefinitionById(@PathVariable UUID id) {
         Map<String, Object> response = new HashMap<>();
 
         response.put("data", datasetDefinitionBusiness.getById(id));
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
-    @PostMapping("datasetDefinition")
+    @PostMapping("/datasetDefinition")
     public ResponseEntity<Map<String, Object>> save(@RequestBody DatasetDefinitionDTO dataset) {
         HttpHeaders responseHeaders = new HttpHeaders();
         if (dataset.getName() == null) {
@@ -112,7 +112,7 @@ public class DatasetController {
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
 
-    @PutMapping("datasetDefinition/{id}")
+    @PutMapping("/datasetDefinition/{id}")
     public ResponseEntity<Map<String, Object>> update(@PathVariable UUID id,
                                                       @RequestBody DatasetDefinitionDTO dataset) throws DefaultException {
         Map<String, Object> response = new HashMap<>();
@@ -121,7 +121,7 @@ public class DatasetController {
     }
 
     @PostMapping("/dataset")
-    public ResponseEntity<Map<String, Object>>  dataset(@RequestBody DatasetDTO datasetDTO) {
+    public ResponseEntity<Map<String, Object>> dataset(@RequestBody DatasetDTO datasetDTO) {
         Map<String, Object> response = new HashMap<>();
         Dataset d = datasetBusiness.getByDatasetDefinitionIdAndStartDate(datasetDTO.getDatasetDefinitionId(), datasetDTO.getStartDate());
         if (d == null){
@@ -150,7 +150,7 @@ public class DatasetController {
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
 
-    @PutMapping("dataset/{id}")
+    @PutMapping("/dataset/{id}")
     public ResponseEntity<Map<String, Object>> update(@PathVariable UUID id,
                                                       @RequestBody DatasetDTO dataset) throws DefaultException {
         Map<String, Object> response = new HashMap<>();
