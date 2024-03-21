@@ -34,13 +34,13 @@ public class DatasetController {
     public ResponseEntity<Map<String, Object>> getAll(@RequestParam(required = false) Boolean publish) {
         Map<String, Object> response = new HashMap<>();
 
-        Stream<DatasetResponseDTO> data = datasetBusiness.getAllLatest().stream().
-                map(d ->
-                     new DatasetResponseDTO(d.getDatasetDefinition().getName(),
-                            d.getDatasetDefinition().getDescription(), d.getDatasetDefinition().getCountryCode(),
-                            d.getDatasetDefinition().getFee(), d.getDatasetDefinition().getPublish(),
-                            d.getDatasetDefinition().getOrganization(), d.getDatasetDefinition().getId(),
-                            d.getUpdatedOn(), null, datasetBusiness.getAllByDatasetDefinitionId(d.getDatasetDefinition().getId()))
+        Stream<DatasetResponseDTO> data = datasetDefinitionBusiness.getAll().stream().
+                map(d -> new DatasetResponseDTO(d.getName(),
+                                    d.getDescription(), d.getCountryCode(),
+                                    d.getFee(), d.getPublish(),
+                                    d.getOrganization(), d.getId(),
+                                    d.getUpdatedOn(), null, datasetBusiness.getAllByDatasetDefinitionId(d.getId()))
+
                 );
 
         if (publish == null){
@@ -65,17 +65,17 @@ public class DatasetController {
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
 
-    @GetMapping("/dataset/{id}")
-    public ResponseEntity<Map<String, Object>> getById(@PathVariable UUID id) {
+    @GetMapping("/dataset/{datasetDefinitionId}")
+    public ResponseEntity<Map<String, Object>> getById(@PathVariable UUID datasetDefinitionId) {
         Map<String, Object> response = new HashMap<>();
-        Optional<Dataset> opt = datasetBusiness.getById(id);
+        Optional<DatasetDefinition> opt = datasetDefinitionBusiness.getById(datasetDefinitionId);
         if (opt.isPresent()){
-            Dataset d = opt.get();
-            response.put("data", new DatasetResponseDTO(d.getDatasetDefinition().getName(),
-                    d.getDatasetDefinition().getDescription(), d.getDatasetDefinition().getCountryCode(),
-                    d.getDatasetDefinition().getFee(), d.getDatasetDefinition().getPublish(),
-                    d.getDatasetDefinition().getOrganization(), d.getDatasetDefinition().getId(),
-                    d.getUpdatedOn(), null, datasetBusiness.getAllByDatasetDefinitionId(d.getDatasetDefinition().getId())));
+            DatasetDefinition d = opt.get();
+            response.put("data", new DatasetResponseDTO(d.getName(),
+                    d.getDescription(), d.getCountryCode(),
+                    d.getFee(), d.getPublish(),
+                    d.getOrganization(), d.getId(),
+                    d.getUpdatedOn(), null, datasetBusiness.getAllByDatasetDefinitionId(d.getId())));
             return new ResponseEntity<>(response, HttpStatus.OK);
         }else{
             return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
