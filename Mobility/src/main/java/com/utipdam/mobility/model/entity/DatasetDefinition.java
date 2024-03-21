@@ -21,6 +21,9 @@ public class DatasetDefinition implements Serializable {
     @Column(name = "country_code")
     private String countryCode;
 
+    @Column(name = "city")
+    private String city;
+
     @Column(name = "description")
     private String description;
 
@@ -62,6 +65,9 @@ public class DatasetDefinition implements Serializable {
         }
         if (datasetDefinition.getCountryCode()!= null) {
             this.countryCode = datasetDefinition.getCountryCode();
+        }
+        if (datasetDefinition.getCity()!= null) {
+            this.city = datasetDefinition.getCity();
         }
         if (datasetDefinition.getPublish()!= null) {
             this.publish = datasetDefinition.getPublish();

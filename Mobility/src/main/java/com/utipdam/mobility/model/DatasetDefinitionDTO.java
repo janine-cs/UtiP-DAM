@@ -6,6 +6,7 @@ import lombok.Data;
 public class DatasetDefinitionDTO {
     private String name;
     private String countryCode;
+    private String city;
     private String description;
     private Double fee;
     private Organization organization;

@@ -41,8 +41,11 @@ public class DatasetBusiness {
 
 
     public Dataset save(Dataset dataset){
-        UUID uuid = UUID.randomUUID();
-        dataset.setId(uuid);
+        if (dataset.getId() == null){
+            UUID uuid = UUID.randomUUID();
+            dataset.setId(uuid);
+        }
+
         return datasetService.save(dataset);
     }
 

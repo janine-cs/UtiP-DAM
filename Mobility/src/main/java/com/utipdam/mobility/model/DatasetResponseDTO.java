@@ -12,6 +12,7 @@ public class DatasetResponseDTO {
     private UUID datasetDefinitionId;
     private String name;
     private String countryCode;
+    private String city;
     private String description;
     private Double fee;
     private Boolean publish;
@@ -24,13 +25,14 @@ public class DatasetResponseDTO {
     }
 
     public DatasetResponseDTO(String name, String description,
-                              String countryCode, Double fee, Boolean publish,
+                              String countryCode, String city, Double fee, Boolean publish,
                               Organization organization, UUID datasetDefinitionId,
                               String updatedOn, Long avgDataPoints, List<DatasetListDTO> datasets) {
         this.datasetDefinitionId = datasetDefinitionId;
         this.name = name;
         this.description = description;
         this.countryCode = countryCode;
+        this.city = city;
         this.fee = fee;
         this.publish = publish;
         this.datasetOwner = organization;

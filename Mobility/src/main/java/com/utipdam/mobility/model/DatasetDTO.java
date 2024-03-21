@@ -7,6 +7,7 @@ import java.util.UUID;
 
 @Data
 public class DatasetDTO {
+    private UUID id;
     private UUID datasetDefinitionId;
     private Date startDate;
     private Date endDate;

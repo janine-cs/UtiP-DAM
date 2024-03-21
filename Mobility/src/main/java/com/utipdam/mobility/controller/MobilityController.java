@@ -35,7 +35,7 @@ import java.util.*;
 @RestController
 public class MobilityController {
     private static final Logger logger = LoggerFactory.getLogger(MobilityController.class);
-    private final String START_TIME = "first_time_seen";
+    private final String START_TIME = "start_time";
     @Autowired
     private DatasetDefinitionBusiness datasetDefinitionBusiness;
 
@@ -53,6 +53,9 @@ public class MobilityController {
         List<FileUploadResponse> listResponse = new ArrayList<>();
         DatasetDefinitionDTO dto = new DatasetDefinitionDTO();
         dto.setName("dash-upload-" + getRandomNumberString());
+        dto.setDescription("Dataset uploaded from the web channel");
+        dto.setCountryCode("KR");
+        dto.setFee(0.0);
 
         DatasetDefinition ds = datasetDefinitionBusiness.save(dto);
 
@@ -107,6 +110,8 @@ public class MobilityController {
             FileUploadUtil.saveFile(fileName, file, uploadPath);
 
             FileUploadResponse fileUploadResponse = new FileUploadResponse();
+            fileUploadResponse.setDatasetDefinitionId(ds.getId());
+            fileUploadResponse.setDatasetId(d.getId());
             fileUploadResponse.setFileName(fileName);
             fileUploadResponse.setSize(size);
             listResponse.add(fileUploadResponse);
@@ -214,6 +219,13 @@ public class MobilityController {
         if (dataset.getName() == null) {
             dataset.setName("dash-upload-" + getRandomNumberString());
         }
+        if (dataset.getDescription() == null) {
+            dataset.setDescription("Dataset uploaded from the API channel");
+        }
+        if (dataset.getCountryCode() == null) {
+            dataset.setCountryCode("KR");
+        }
+
         DatasetDefinition ds = datasetDefinitionBusiness.save(dataset);
 
         File fOrg;

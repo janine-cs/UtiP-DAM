@@ -69,6 +69,7 @@ public class DatasetDefinitionBusiness {
             data.setName(dataset.getName() == null ? ds.get().getName() : dataset.getName());
             data.setDescription(dataset.getDescription() == null ? ds.get().getDescription() : dataset.getDescription());
             data.setCountryCode(dataset.getCountryCode() == null ? ds.get().getCountryCode() : dataset.getCountryCode());
+            data.setCity(dataset.getCity() == null ? ds.get().getCity() : dataset.getCity());
             data.setFee(dataset.getFee() == null ? ds.get().getFee() : dataset.getFee());
             if (dataset.getOrganization() == null) {
                 data.setOrganization(ds.get().getOrganization());
@@ -82,7 +83,8 @@ public class DatasetDefinitionBusiness {
                     data.setOrganization(response);
                 }
             }
-
+            data.setPublish(dataset.getPublish() == null ? ds.get().getPublish() : dataset.getPublish());
+            data.setInternal(dataset.getInternal() == null ? ds.get().getInternal() : dataset.getInternal());
             ds.get().update(data);
             return datasetDefinitionService.save(ds.get());
         }else{
