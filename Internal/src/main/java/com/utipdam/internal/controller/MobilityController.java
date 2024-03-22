@@ -9,6 +9,8 @@ import com.utipdam.internal.FileUploadUtil;
 import com.utipdam.internal.model.FileUploadResponse;
 import com.utipdam.internal.model.Dataset;
 import org.apache.commons.io.filefilter.WildcardFileFilter;
+import org.json.JSONException;
+import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -28,6 +30,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.*;
+import java.util.stream.Stream;
 
 import static com.utipdam.internal.InternalApplication.token;
 
@@ -38,7 +41,9 @@ public class MobilityController {
     @Value("${utipdam.app.internalApi}")
     private String uri;
 
-    private final String START_TIME = "first_time_seen";
+    private final String START_TIME = "first_time_seen"; //TODO
+    private final String RESOLUTION = "daily";
+    private final int K = 20;
 
     //internal server use. upload & anonymize
     //existing dataset
@@ -46,8 +51,6 @@ public class MobilityController {
     public ResponseEntity<Map<String, Object>> uploadInternal(@RequestPart String datasetDefinition,
                                                               @RequestPart("file") MultipartFile file) throws IOException {
 
-
-        List<FileUploadResponse> listResponse = new ArrayList<>();
         Map<String, Object> response = new HashMap<>();
 
         File fOrg;
@@ -91,13 +94,39 @@ public class MobilityController {
         //headers.set("Authorization", "Bearer "+ token);
 
         //logger.info(token);
-        String requestJson = "{\"datasetDefinitionId\": \"" + datasetDefinition + "\", \"startDate\": \"" + csvDate + "\" ," +
-                "\"endDate\": \"" + csvDate + "\", \"resolution\":\"daily\"," +
-                "\"k\":20}";
+
         //logger.info(requestJson);
         headers.setContentType(MediaType.APPLICATION_JSON);
 
-        HttpEntity<String> entity = new HttpEntity<>(requestJson, headers);
+
+        UUID uuid = UUID.randomUUID();
+        fileName = "dataset-" + uuid + "-" + csvDate + ".csv";
+
+        //process anonymization
+        long dataPoints;
+        HttpEntity<String> entity = null;
+        FileUploadUtil.saveFile(fileName, file, uploadPath);
+
+        File fi = new File(fileName);
+        fi.setReadable(true, false);
+        fi.setWritable(true, false);
+
+        Path filePath = Paths.get(uploadPath + "/" + fileName);
+        try (Stream<String> stream = Files.lines(filePath)) {
+            dataPoints = stream.count();
+            JSONObject request = new JSONObject();
+            request.put("id", uuid);
+            request.put("datasetDefinitionId", datasetDefinition);
+            request.put("startDate", csvDate);
+            request.put("endDate", csvDate);
+            request.put("resolution", RESOLUTION);
+            request.put("k", K);
+            request.put("dataPoints", dataPoints);
+            entity = new HttpEntity<>(request.toString(), headers);
+        } catch (JSONException e) {
+            logger.error(e.getMessage());
+        }
+
         try {
             JsonNode node = restTemplate.exchange(uri + "/dataset",
                     HttpMethod.POST, entity, JsonNode.class).getBody();
@@ -109,31 +138,23 @@ public class MobilityController {
                 Dataset dataset = new ObjectMapper().readValue(nodeResp.toString(), new TypeReference<>() {
                 });
                 if (dataset != null) {
-                    fileName = "dataset-" + dataset.getId() + "-" + dataset.getStartDate() + ".csv";
-
-                    FileUploadUtil.saveFile(fileName, file, uploadPath);
-
-                    File fi = new File(fileName);
-                    fi.setReadable(true, false);
-                    fi.setWritable(true, false);
+                    response.put("data", dataset);
+                    return new ResponseEntity<>(response, HttpStatus.OK);
                 }
             }
 
         } catch (HttpClientErrorException e) {
-            e.printStackTrace();
-//                try {
-//                    Dataset datasetObj = restTemplate.exchange(url,
-//                            HttpMethod.GET, null, new ParameterizedTypeReference<Dataset>() {
-//                            }).getBody();
-//                }catch (HttpClientErrorException exception){
-//                    exception.printStackTrace();
-//
-//                }
+            File f = new File(uploadPath + "/" + fileName);
+            if (f.delete()) {
+                logger.info(f + " file deleted");
+            }
+            logger.error(e.getMessage());
         }
 
-        response.put("data", listResponse);
-        return new ResponseEntity<>(response, HttpStatus.OK);
+        return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+
     }
+
 
     @GetMapping("/mobility/download")
     public ResponseEntity<Resource> downloadInternal(@RequestParam UUID datasetDefinitionId,

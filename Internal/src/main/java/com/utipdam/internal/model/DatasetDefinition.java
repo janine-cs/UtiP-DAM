@@ -11,6 +11,7 @@ public class DatasetDefinition {
     private UUID id;
     private String name;
     private String countryCode;
+    private String city;
     private String description;
     private Double fee;
     private String updatedOn;
