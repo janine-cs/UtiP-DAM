@@ -31,11 +31,14 @@ import java.nio.file.Paths;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.sql.Date;
 import java.util.*;
+import java.util.stream.Stream;
 
 @RestController
 public class MobilityController {
     private static final Logger logger = LoggerFactory.getLogger(MobilityController.class);
     private final String START_TIME = "start_time";
+    private final String RESOLUTION = "daily";
+    private final int K = 20;
     @Autowired
     private DatasetDefinitionBusiness datasetDefinitionBusiness;
 
@@ -47,7 +50,7 @@ public class MobilityController {
 
 
     @PostMapping("/mobility/upload")
-    public ResponseEntity<Map<String, Object>> upload(@RequestParam("file") MultipartFile file) throws IOException {
+    public ResponseEntity<Map<String, Object>> upload(@RequestParam("file") MultipartFile file) {
         Map<String, Object> response = new HashMap<>();
 
         List<FileUploadResponse> listResponse = new ArrayList<>();
@@ -60,54 +63,77 @@ public class MobilityController {
         DatasetDefinition ds = datasetDefinitionBusiness.save(dto);
 
         File fOrg;
-
         String path = "/data/mobility/" + ds.getId();
-        fOrg = new File(path);
-        fOrg.setReadable(true, false);
-        fOrg.setWritable(true, false);
-        fOrg.mkdirs();
-        Files.setPosixFilePermissions(Path.of("/data/mobility/" + ds.getId()), PosixFilePermissions.fromString("rwxrwxrwx"));
+        try {
+            fOrg = new File(path);
+            fOrg.setReadable(true, false);
+            fOrg.setWritable(true, false);
+            fOrg.mkdirs();
+            Files.setPosixFilePermissions(Path.of("/data/mobility/" + ds.getId()), PosixFilePermissions.fromString("rwxrwxrwx"));
+        } catch (IOException e) {
+            logger.error(e.getMessage());
+        }
 
 
         Path uploadPath = Paths.get(path);
+        String fileName;
+        BufferedReader br;
+        String csvDate = null;
 
-        if (path != null) {
-            BufferedReader br;
-            String csvDate = null;
-
-            try {
-                String line;
-                InputStream is = file.getInputStream();
-                br = new BufferedReader(new InputStreamReader(is));
-                line = br.readLine();
-                String[] nextRecord;
-                if (line != null) {
-                    nextRecord = line.split(",");
-                    int dateIndex = Arrays.asList(nextRecord).indexOf(START_TIME);
-                    if (dateIndex > 0 && (line = br.readLine()) != null) {
-                        csvDate = line.split(",")[dateIndex];
-                        csvDate = csvDate.split(" ")[0];
-                    }
+        try {
+            String line;
+            InputStream is = file.getInputStream();
+            br = new BufferedReader(new InputStreamReader(is));
+            line = br.readLine();
+            String[] nextRecord;
+            if (line != null) {
+                nextRecord = line.split(",");
+                int dateIndex = Arrays.asList(nextRecord).indexOf(START_TIME);
+                if (dateIndex > 0 && (line = br.readLine()) != null) {
+                    csvDate = line.split(",")[dateIndex];
+                    csvDate = csvDate.split(" ")[0];
                 }
-
-            } catch (IOException e) {
-                e.printStackTrace();
-                logger.error(e.getMessage());
             }
 
+        } catch (IOException e) {
+            logger.error(e.getMessage());
+        }
 
+
+        UUID uuid = UUID.randomUUID();
+        fileName = "dataset-" + uuid + "-" + csvDate + ".csv";
+
+        //process anonymization
+
+
+        long dataPoints;
+        try {
+            FileUploadUtil.saveFile(fileName, file, uploadPath);
+        } catch (IOException e) {
+            logger.error(e.getMessage());
+        }
+
+        File fi = new File(fileName);
+        fi.setReadable(true, false);
+        fi.setWritable(true, false);
+
+        Path filePath = Paths.get(uploadPath + "/" + fileName);
+        try (Stream<String> stream = Files.lines(filePath)) {
+            dataPoints = stream.count();
             Dataset dataset = new Dataset();
+            dataset.setId(uuid);
             dataset.setDatasetDefinition(ds);
-            dataset.setStartDate(Date.valueOf(csvDate));
-            dataset.setEndDate(Date.valueOf(csvDate));
-            dataset.setResolution("daily");
+            if (csvDate != null){
+                dataset.setStartDate(Date.valueOf(csvDate));
+                dataset.setEndDate(Date.valueOf(csvDate));
+            }
+            dataset.setResolution(RESOLUTION);
+            dataset.setK(K);
+            dataset.setDataPoints(dataPoints);
 
             Dataset d = datasetBusiness.save(dataset);
 
-            String fileName = "dataset-" + d.getId() + "-" + csvDate + ".csv";
-            long size = file.getSize();
-
-            FileUploadUtil.saveFile(fileName, file, uploadPath);
+            long size = Files.size(filePath);
 
             FileUploadResponse fileUploadResponse = new FileUploadResponse();
             fileUploadResponse.setDatasetDefinitionId(ds.getId());
@@ -115,20 +141,20 @@ public class MobilityController {
             fileUploadResponse.setFileName(fileName);
             fileUploadResponse.setSize(size);
             listResponse.add(fileUploadResponse);
+            response.put("data", listResponse);
+            return new ResponseEntity<>(response, HttpStatus.OK);
 
-            File fi = new File(fileName);
-            fi.setReadable(true, false);
-            fi.setWritable(true, false);
-
+        } catch (IOException e) {
+            logger.error(e.getMessage());
         }
 
-        response.put("data", listResponse);
-        return new ResponseEntity<>(response, HttpStatus.OK);
+        return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+
     }
 
 
     //TODO
-    @GetMapping("/mobility/anonymize")
+    @PostMapping("/mobility/anonymize")
     public ResponseEntity<Resource> anonymize(@RequestParam UUID datasetId,
                                               @RequestParam String resolution, @RequestParam Integer k) {
         return null;
@@ -191,14 +217,14 @@ public class MobilityController {
                             .queryParam("datasetDefinitionId", datasetObj.getDatasetDefinition().getId())
                             .queryParam("datasetId", datasetObj.getId())
                             .build().toUriString();
-                        try {
-                            return restTemplate.restTemplate().exchange(url,
-                                    HttpMethod.GET, null, new ParameterizedTypeReference<ResponseEntity<Resource>>() {
-                                    }).getBody();
+                    try {
+                        return restTemplate.restTemplate().exchange(url,
+                                HttpMethod.GET, null, new ParameterizedTypeReference<ResponseEntity<Resource>>() {
+                                }).getBody();
 
-                        }catch(Exception ex){
-                            ex.printStackTrace();
-                        }
+                    } catch (Exception ex) {
+                        ex.printStackTrace();
+                    }
 
                 }
             }
@@ -288,7 +314,7 @@ public class MobilityController {
         HttpHeaders responseHeaders = new HttpHeaders();
 
         BufferedReader br = new BufferedReader(
-                new InputStreamReader(new FileSystemResource("/data/mobility/" + ds.getId() +"/" +fileName).getInputStream()));
+                new InputStreamReader(new FileSystemResource("/data/mobility/" + ds.getId() + "/" + fileName).getInputStream()));
         StringBuffer inputBuffer = new StringBuffer();
         String line;
 
@@ -300,7 +326,7 @@ public class MobilityController {
         String inputStr = inputBuffer.toString();
 
         ContentDisposition contentDisposition = ContentDisposition.builder("inline")
-                .filename("/data/mobility/" + ds.getId() +"/" + fileName)
+                .filename("/data/mobility/" + ds.getId() + "/" + fileName)
                 .build();
         responseHeaders.setContentDisposition(contentDisposition);
         InputStream stream = new ByteArrayInputStream(inputStr.getBytes(StandardCharsets.UTF_8));

@@ -5,6 +5,7 @@ import com.utipdam.mobility.business.DatasetBusiness;
 import com.utipdam.mobility.exception.DefaultException;
 import com.utipdam.mobility.model.DatasetDTO;
 import com.utipdam.mobility.model.DatasetDefinitionDTO;
+import com.utipdam.mobility.model.DatasetListDTO;
 import com.utipdam.mobility.model.DatasetResponseDTO;
 import com.utipdam.mobility.model.entity.Dataset;
 import com.utipdam.mobility.model.entity.DatasetDefinition;
@@ -36,13 +37,19 @@ public class DatasetController {
         Map<String, Object> response = new HashMap<>();
 
         Stream<DatasetResponseDTO> data = datasetDefinitionBusiness.getAll().stream().
-                map(d -> new DatasetResponseDTO(d.getName(),
+                map(d -> {
+                    List<DatasetListDTO> dsList = datasetBusiness.getAllByDatasetDefinitionId(d.getId());
+
+                        return new DatasetResponseDTO(d.getName(),
                         d.getDescription(), d.getCountryCode(), d.getCity(),
                         d.getFee(), d.getPublish(),
                         d.getOrganization(), d.getId(),
-                        d.getUpdatedOn(), null, datasetBusiness.getAllByDatasetDefinitionId(d.getId()))
+                        d.getUpdatedOn(), (long) dsList.stream().filter(o -> o != null && o.getDataPoints() != null)
+                                .mapToLong(DatasetListDTO::getDataPoints)
+                                .average()
+                                .orElse(0L), dsList);
 
-                );
+                    });
 
         if (publish == null) {
             response.put("data", data
@@ -71,11 +78,16 @@ public class DatasetController {
         Optional<DatasetDefinition> opt = datasetDefinitionBusiness.getById(datasetDefinitionId);
         if (opt.isPresent()) {
             DatasetDefinition d = opt.get();
+            List<DatasetListDTO> dsList = datasetBusiness.getAllByDatasetDefinitionId(d.getId());
+
             response.put("data", new DatasetResponseDTO(d.getName(),
                     d.getDescription(), d.getCountryCode(), d.getCity(),
                     d.getFee(), d.getPublish(),
                     d.getOrganization(), d.getId(),
-                    d.getUpdatedOn(), null, datasetBusiness.getAllByDatasetDefinitionId(d.getId())));
+                    d.getUpdatedOn(), (long) dsList.stream().filter(o -> o != null && o.getDataPoints() != null)
+                    .mapToLong(DatasetListDTO::getDataPoints)
+                    .average()
+                    .orElse(0L), dsList));
             return new ResponseEntity<>(response, HttpStatus.OK);
         } else {
             return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);

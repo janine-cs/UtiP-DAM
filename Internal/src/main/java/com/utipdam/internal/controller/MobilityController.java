@@ -126,6 +126,7 @@ public class MobilityController {
         } catch (JSONException e) {
             logger.error(e.getMessage());
         }
+        long size = Files.size(filePath);
 
         try {
             JsonNode node = restTemplate.exchange(uri + "/dataset",
@@ -138,7 +139,12 @@ public class MobilityController {
                 Dataset dataset = new ObjectMapper().readValue(nodeResp.toString(), new TypeReference<>() {
                 });
                 if (dataset != null) {
-                    response.put("data", dataset);
+                    FileUploadResponse fileUploadResponse = new FileUploadResponse();
+                    fileUploadResponse.setDatasetDefinitionId(UUID.fromString(datasetDefinition));
+                    fileUploadResponse.setDatasetId(dataset.getId());
+                    fileUploadResponse.setFileName(fileName);
+                    fileUploadResponse.setSize(size);
+                    response.put("data", fileUploadResponse);
                     return new ResponseEntity<>(response, HttpStatus.OK);
                 }
             }
