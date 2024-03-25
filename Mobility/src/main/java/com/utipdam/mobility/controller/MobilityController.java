@@ -38,27 +38,33 @@ public class MobilityController {
     private static final Logger logger = LoggerFactory.getLogger(MobilityController.class);
     private final String START_TIME = "start_time";
     private final String RESOLUTION = "daily";
-    private final int K = 20;
+
     @Autowired
     private DatasetDefinitionBusiness datasetDefinitionBusiness;
 
     @Autowired
     private DatasetBusiness datasetBusiness;
 
-    @Value("${utipdam.app.internalApi}")
-    private String uri;
+    //private String uri; /internal/mobility/download
 
     @Value("${utipdam.app.maxFileSize}")
     private long maxFileSize;
 
     @PostMapping("/mobility/upload")
     public ResponseEntity<Map<String, Object>> upload(@RequestPart String k,
-                                                      @RequestPart("file") MultipartFile file) {
+                                                      @RequestPart MultipartFile file) {
 
         Map<String, Object> response = new HashMap<>();
         String errorMessage;
         if (!isNumeric(k)){
-            errorMessage = "k must be a number between 1 - 100. You provided " + k;
+            errorMessage = "k must be a number between 0 - 100. You provided " + k;
+            logger.error(errorMessage);
+            response.put("error", errorMessage);
+            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+        }
+
+        if (!Objects.requireNonNull(file.getOriginalFilename()).endsWith(".csv")){
+            errorMessage = "Please upload a csv file. You provided " + file.getOriginalFilename();
             logger.error(errorMessage);
             response.put("error", errorMessage);
             return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
@@ -253,19 +259,24 @@ public class MobilityController {
                     logger.info("downloading from internal server");
                     //download from internal archive server
                     RestTemplateClient restTemplate = new RestTemplateClient();
+                    String domain = df.get().getServer().getDomain();
 
-                    String url = UriComponentsBuilder
-                            .fromUriString(uri)
-                            .queryParam("datasetDefinitionId", datasetObj.getDatasetDefinition().getId())
-                            .queryParam("datasetId", datasetObj.getId())
-                            .build().toUriString();
-                    try {
-                        return restTemplate.restTemplate().exchange(url,
-                                HttpMethod.GET, null, new ParameterizedTypeReference<ResponseEntity<Resource>>() {
-                                }).getBody();
+                    if (domain != null){
+                        String uri = domain + "/internal/mobility/download";
+                        logger.info(uri);
+                        String url = UriComponentsBuilder
+                                .fromUriString(uri)
+                                .queryParam("datasetDefinitionId", definitionObj.getId())
+                                .queryParam("datasetId", datasetObj.getId())
+                                .build().toUriString();
+                        try {
+                            return restTemplate.restTemplate().exchange(url,
+                                    HttpMethod.GET, null, new ParameterizedTypeReference<>() {
+                                    });
 
-                    } catch (Exception ex) {
-                        logger.error(ex.getMessage());
+                        } catch (Exception ex) {
+                            logger.error(ex.getMessage());
+                        }
                     }
 
                 }

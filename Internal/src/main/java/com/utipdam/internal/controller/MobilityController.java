@@ -43,25 +43,44 @@ public class MobilityController {
 
     private final String START_TIME = "first_time_seen"; //TODO
     private final String RESOLUTION = "daily";
-    private final int K = 20;
 
     //internal server use. upload & anonymize
     //existing dataset
-    @PostMapping("/mobility/anonymization")
+    @PostMapping("/mobility/upload")
     public ResponseEntity<Map<String, Object>> uploadInternal(@RequestPart String datasetDefinition,
-                                                              @RequestPart("file") MultipartFile file) throws IOException {
+                                                              @RequestPart String k,
+                                                              @RequestPart MultipartFile file) {
 
         Map<String, Object> response = new HashMap<>();
+        String errorMessage;
+        if (!isNumeric(k)) {
+            errorMessage = "k must be a number between 0 - 100. You provided " + k;
+            logger.error(errorMessage);
+            response.put("error", errorMessage);
+            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+        }
+
+        if (!Objects.requireNonNull(file.getOriginalFilename()).endsWith(".csv")) {
+            errorMessage = "Please upload a csv file. You provided " + file.getOriginalFilename();
+            logger.error(errorMessage);
+            response.put("error", errorMessage);
+            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+        }
 
         File fOrg;
-
         String path = "/data/mobility/" + datasetDefinition;
-        fOrg = new File(path);
-        fOrg.setReadable(true, false);
-        fOrg.setWritable(true, false);
-        fOrg.mkdirs();
-        Files.setPosixFilePermissions(Path.of("/data/mobility/" + datasetDefinition), PosixFilePermissions.fromString("rwxrwxrwx"));
-
+        try {
+            fOrg = new File(path);
+            fOrg.setReadable(true, false);
+            fOrg.setWritable(true, false);
+            fOrg.mkdirs();
+            Files.setPosixFilePermissions(Path.of("/data/mobility/" + datasetDefinition), PosixFilePermissions.fromString("rwxrwxrwx"));
+        } catch (IOException e) {
+            errorMessage = e.getMessage();
+            logger.error(errorMessage);
+            response.put("error", errorMessage);
+            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
 
         Path uploadPath = Paths.get(path);
         String fileName;
@@ -84,8 +103,10 @@ public class MobilityController {
             }
             br.close();
         } catch (IOException e) {
-            e.printStackTrace();
-            logger.error(e.getMessage());
+            errorMessage = e.getMessage();
+            logger.error(errorMessage);
+            response.put("error", errorMessage);
+            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
         }
 
         RestTemplate restTemplate = new RestTemplate();
@@ -104,13 +125,19 @@ public class MobilityController {
 
         //process anonymization
         long dataPoints;
-        HttpEntity<String> entity = null;
-        FileUploadUtil.saveFile(fileName, file, uploadPath);
+        HttpEntity<String> entity;
+        try {
+            FileUploadUtil.saveFile(fileName, file, uploadPath);
 
-        File fi = new File(fileName);
-        fi.setReadable(true, false);
-        fi.setWritable(true, false);
-
+            File fi = new File(fileName);
+            fi.setReadable(true, false);
+            fi.setWritable(true, false);
+        } catch (IOException e) {
+            errorMessage = e.getMessage();
+            logger.error(errorMessage);
+            response.put("error", errorMessage);
+            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+        }
         Path filePath = Paths.get(uploadPath + "/" + fileName);
         try (Stream<String> stream = Files.lines(filePath)) {
             dataPoints = stream.count();
@@ -120,15 +147,19 @@ public class MobilityController {
             request.put("startDate", csvDate);
             request.put("endDate", csvDate);
             request.put("resolution", RESOLUTION);
-            request.put("k", K);
+            request.put("k", k);
             request.put("dataPoints", dataPoints);
             entity = new HttpEntity<>(request.toString(), headers);
-        } catch (JSONException e) {
-            logger.error(e.getMessage());
+        } catch (JSONException | IOException e) {
+            errorMessage = e.getMessage();
+            logger.error(errorMessage);
+            response.put("error", errorMessage);
+            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
         }
-        long size = Files.size(filePath);
 
         try {
+            long size = Files.size(filePath);
+
             JsonNode node = restTemplate.exchange(uri + "/dataset",
                     HttpMethod.POST, entity, JsonNode.class).getBody();
 
@@ -149,18 +180,29 @@ public class MobilityController {
                 }
             }
 
-        } catch (HttpClientErrorException e) {
+        } catch (HttpClientErrorException | IOException e) {
             File f = new File(uploadPath + "/" + fileName);
             if (f.delete()) {
                 logger.info(f + " file deleted");
             }
-            logger.error(e.getMessage());
+            errorMessage = e.getMessage();
+            logger.error(errorMessage);
+            response.put("error", errorMessage);
+            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
         }
 
         return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
 
     }
 
+    public static boolean isNumeric(String str) {
+        try {
+            Double.parseDouble(str);
+            return true;
+        } catch (NumberFormatException e) {
+            return false;
+        }
+    }
 
     @GetMapping("/mobility/download")
     public ResponseEntity<Resource> downloadInternal(@RequestParam UUID datasetDefinitionId,

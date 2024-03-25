@@ -18,7 +18,7 @@ public class DatasetDefinition {
     private Boolean publish;
     private Boolean internal;
     private Organization organization;
-
+    private Server server;
 
     public DatasetDefinition() {
     }

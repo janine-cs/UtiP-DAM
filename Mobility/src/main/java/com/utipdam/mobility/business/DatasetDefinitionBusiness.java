@@ -41,6 +41,7 @@ public class DatasetDefinitionBusiness {
         ds.setName(dataset.getName());
         ds.setDescription(dataset.getDescription());
         ds.setCountryCode(dataset.getCountryCode());
+        ds.setCity(dataset.getCity());
         ds.setFee(dataset.getFee());
         ds.setInternal(dataset.getInternal() != null && dataset.getInternal());
         ds.setPublish(dataset.getPublish() != null && dataset.getPublish());
@@ -85,6 +86,7 @@ public class DatasetDefinitionBusiness {
             }
             data.setPublish(dataset.getPublish() == null ? ds.get().getPublish() : dataset.getPublish());
             data.setInternal(dataset.getInternal() == null ? ds.get().getInternal() : dataset.getInternal());
+            data.setServer(ds.get().getServer());
             ds.get().update(data);
             return datasetDefinitionService.save(ds.get());
         }else{

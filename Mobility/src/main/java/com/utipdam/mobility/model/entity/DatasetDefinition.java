@@ -33,9 +33,6 @@ public class DatasetDefinition implements Serializable {
     @Column(name = "updated_on")
     private String updatedOn = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(Calendar.getInstance().getTime());
 
-//    @Column(name = "organization_id")
-//    private UUID organizationId;
-
     @Column(name = "publish")
     private Boolean publish;
 
@@ -46,6 +43,9 @@ public class DatasetDefinition implements Serializable {
     @JoinColumn(name = "organization_id")
     private Organization organization;
 
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "server_id")
+    private Server server;
 
     public DatasetDefinition() {
     }
