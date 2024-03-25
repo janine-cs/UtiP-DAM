@@ -82,7 +82,7 @@ public class MobilityController {
                     csvDate = csvDate.split(" ")[0];
                 }
             }
-
+            br.close();
         } catch (IOException e) {
             e.printStackTrace();
             logger.error(e.getMessage());
