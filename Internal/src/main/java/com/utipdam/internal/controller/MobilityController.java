@@ -9,6 +9,7 @@ import com.utipdam.internal.FileUploadUtil;
 import com.utipdam.internal.model.FileUploadResponse;
 import com.utipdam.internal.model.Dataset;
 import org.apache.commons.io.filefilter.WildcardFileFilter;
+import org.apache.commons.validator.GenericValidator;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.slf4j.Logger;
@@ -43,6 +44,7 @@ public class MobilityController {
 
     private final String START_TIME = "first_time_seen"; //TODO
     private final String RESOLUTION = "daily";
+    private final String DATE_FORMAT = "yyyy-MM-dd";
 
     //internal server use. upload & anonymize
     //existing dataset
@@ -99,6 +101,12 @@ public class MobilityController {
                 if (dateIndex > 0 && (line = br.readLine()) != null) {
                     csvDate = line.split(",")[dateIndex];
                     csvDate = csvDate.split(" ")[0];
+                    if (!GenericValidator.isDate(csvDate, DATE_FORMAT, true)){
+                        errorMessage = "start_time must be yyyy-MM-dd HH:mm:ss format";
+                        logger.error(errorMessage);
+                        response.put("error", errorMessage);
+                        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+                    }
                 }
             }
             br.close();
@@ -119,76 +127,77 @@ public class MobilityController {
         //logger.info(requestJson);
         headers.setContentType(MediaType.APPLICATION_JSON);
 
+        if (csvDate != null) {
+            UUID uuid = UUID.randomUUID();
+            fileName = "dataset-" + uuid + "-" + csvDate + ".csv";
 
-        UUID uuid = UUID.randomUUID();
-        fileName = "dataset-" + uuid + "-" + csvDate + ".csv";
+            //process anonymization
+            long dataPoints;
+            HttpEntity<String> entity;
+            try {
+                FileUploadUtil.saveFile(fileName, file, uploadPath);
 
-        //process anonymization
-        long dataPoints;
-        HttpEntity<String> entity;
-        try {
-            FileUploadUtil.saveFile(fileName, file, uploadPath);
+                File fi = new File(fileName);
+                fi.setReadable(true, false);
+                fi.setWritable(true, false);
+            } catch (IOException e) {
+                errorMessage = e.getMessage();
+                logger.error(errorMessage);
+                response.put("error", errorMessage);
+                return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+            }
+            Path filePath = Paths.get(uploadPath + "/" + fileName);
+            try (Stream<String> stream = Files.lines(filePath)) {
+                dataPoints = stream.count();
+                JSONObject request = new JSONObject();
+                request.put("id", uuid);
+                request.put("datasetDefinitionId", datasetDefinition);
+                request.put("startDate", csvDate);
+                request.put("endDate", csvDate);
+                request.put("resolution", RESOLUTION);
+                request.put("k", k);
+                request.put("dataPoints", dataPoints);
+                entity = new HttpEntity<>(request.toString(), headers);
+            } catch (JSONException | IOException e) {
+                errorMessage = e.getMessage();
+                logger.error(errorMessage);
+                response.put("error", errorMessage);
+                return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+            }
 
-            File fi = new File(fileName);
-            fi.setReadable(true, false);
-            fi.setWritable(true, false);
-        } catch (IOException e) {
-            errorMessage = e.getMessage();
-            logger.error(errorMessage);
-            response.put("error", errorMessage);
-            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
-        }
-        Path filePath = Paths.get(uploadPath + "/" + fileName);
-        try (Stream<String> stream = Files.lines(filePath)) {
-            dataPoints = stream.count();
-            JSONObject request = new JSONObject();
-            request.put("id", uuid);
-            request.put("datasetDefinitionId", datasetDefinition);
-            request.put("startDate", csvDate);
-            request.put("endDate", csvDate);
-            request.put("resolution", RESOLUTION);
-            request.put("k", k);
-            request.put("dataPoints", dataPoints);
-            entity = new HttpEntity<>(request.toString(), headers);
-        } catch (JSONException | IOException e) {
-            errorMessage = e.getMessage();
-            logger.error(errorMessage);
-            response.put("error", errorMessage);
-            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
-        }
+            try {
+                long size = Files.size(filePath) - 1;
 
-        try {
-            long size = Files.size(filePath);
+                JsonNode node = restTemplate.exchange(uri + "/dataset",
+                        HttpMethod.POST, entity, JsonNode.class).getBody();
 
-            JsonNode node = restTemplate.exchange(uri + "/dataset",
-                    HttpMethod.POST, entity, JsonNode.class).getBody();
-
-            if (node != null) {
-                JsonFactory jsonFactory = new JsonFactory();
-                ObjectMapper objectMapper = new ObjectMapper(jsonFactory);
-                JsonNode nodeResp = objectMapper.readValue(node.get("data").toString(), JsonNode.class);
-                Dataset dataset = new ObjectMapper().readValue(nodeResp.toString(), new TypeReference<>() {
-                });
-                if (dataset != null) {
-                    FileUploadResponse fileUploadResponse = new FileUploadResponse();
-                    fileUploadResponse.setDatasetDefinitionId(UUID.fromString(datasetDefinition));
-                    fileUploadResponse.setDatasetId(dataset.getId());
-                    fileUploadResponse.setFileName(fileName);
-                    fileUploadResponse.setSize(size);
-                    response.put("data", fileUploadResponse);
-                    return new ResponseEntity<>(response, HttpStatus.OK);
+                if (node != null) {
+                    JsonFactory jsonFactory = new JsonFactory();
+                    ObjectMapper objectMapper = new ObjectMapper(jsonFactory);
+                    JsonNode nodeResp = objectMapper.readValue(node.get("data").toString(), JsonNode.class);
+                    Dataset dataset = new ObjectMapper().readValue(nodeResp.toString(), new TypeReference<>() {
+                    });
+                    if (dataset != null) {
+                        FileUploadResponse fileUploadResponse = new FileUploadResponse();
+                        fileUploadResponse.setDatasetDefinitionId(UUID.fromString(datasetDefinition));
+                        fileUploadResponse.setDatasetId(dataset.getId());
+                        fileUploadResponse.setFileName(fileName);
+                        fileUploadResponse.setSize(size);
+                        response.put("data", fileUploadResponse);
+                        return new ResponseEntity<>(response, HttpStatus.OK);
+                    }
                 }
-            }
 
-        } catch (HttpClientErrorException | IOException e) {
-            File f = new File(uploadPath + "/" + fileName);
-            if (f.delete()) {
-                logger.info(f + " file deleted");
+            } catch (HttpClientErrorException | IOException e) {
+                File f = new File(uploadPath + "/" + fileName);
+                if (f.delete()) {
+                    logger.info(f + " file deleted");
+                }
+                errorMessage = e.getMessage();
+                logger.error(errorMessage);
+                response.put("error", errorMessage);
+                return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
             }
-            errorMessage = e.getMessage();
-            logger.error(errorMessage);
-            response.put("error", errorMessage);
-            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
         }
 
         return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
@@ -241,7 +250,6 @@ public class MobilityController {
                         .body(resource);
             }
         }
-
 
         return null;
     }
