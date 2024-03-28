@@ -58,6 +58,7 @@ public class Dataset {
         if (dataset.getK() != null) {
             this.k = dataset.getK();
         }
+        this.updatedOn = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(Calendar.getInstance().getTime());
     }
 
 }

@@ -59,6 +59,11 @@ public class SendEmail {
             String body = sanitizeHTML(email.getMessage());
             msg = msg + body;
 
+
+            String footer ="<br/><br/><center><b style='color:blue;'>Sent by <a href=\"https://ngi.cs.co.il\" target=\"_blank\">UtiP-DAM</a><br/>ⓒ 2024 Correlation Systems</b><br/><br/></center>";
+
+            msg = msg + footer;
+
             MimeBodyPart mimeBodyPart = new MimeBodyPart();
             mimeBodyPart.setContent(msg, "text/html; charset=utf-8");
 

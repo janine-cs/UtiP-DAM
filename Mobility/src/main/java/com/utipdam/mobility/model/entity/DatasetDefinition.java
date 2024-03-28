@@ -75,5 +75,6 @@ public class DatasetDefinition implements Serializable {
         if (datasetDefinition.getInternal()!= null) {
             this.internal = datasetDefinition.getInternal();
         }
+        this.updatedOn = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(Calendar.getInstance().getTime());
     }
 }
