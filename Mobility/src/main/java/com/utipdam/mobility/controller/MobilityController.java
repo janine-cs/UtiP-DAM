@@ -1,11 +1,18 @@
 package com.utipdam.mobility.controller;
 
+import com.opencsv.CSVReader;
+import com.opencsv.CSVReaderBuilder;
+import com.opencsv.RFC4180Parser;
+import com.opencsv.RFC4180ParserBuilder;
+import com.opencsv.exceptions.CsvValidationException;
 import com.utipdam.mobility.FileUploadUtil;
 import com.utipdam.mobility.business.DatasetDefinitionBusiness;
 import com.utipdam.mobility.business.DatasetBusiness;
 import com.utipdam.mobility.config.RestTemplateClient;
 import com.utipdam.mobility.model.DatasetDefinitionDTO;
 import com.utipdam.mobility.model.FileUploadResponse;
+import com.utipdam.mobility.model.VisitorTracks;
+import com.utipdam.mobility.model.VisitorTracksNew;
 import com.utipdam.mobility.model.entity.Dataset;
 import com.utipdam.mobility.model.entity.DatasetDefinition;
 import org.apache.commons.io.filefilter.WildcardFileFilter;
@@ -285,6 +292,104 @@ public class MobilityController {
         return new ResponseEntity<>(HttpStatus.NO_CONTENT);
     }
 
+    @GetMapping("/mobility/visitorDetection")
+    public ResponseEntity<Map<String, Object>> findMeHere(@RequestParam Integer[] locationIds,
+                                                          @RequestParam UUID datasetId){
+        Map<String, Object> response = new HashMap<>();
+
+        Optional<Dataset> datasetIdCheck = datasetBusiness.getById(datasetId);
+        if (datasetIdCheck.isPresent()) {
+            Dataset dataset = datasetIdCheck.get();
+            Optional<DatasetDefinition> dd = datasetDefinitionBusiness.getById(dataset.getDatasetDefinition().getId());
+            if (dd.isPresent()) {
+                DatasetDefinition datasetDef = dd.get();
+                List<VisitorTracks> visitorTracks = new ArrayList<>();
+                RFC4180Parser rfc4180Parser = new RFC4180ParserBuilder().build();
+
+                if (datasetDef.getInternal() != null && !datasetDef.getInternal()) {
+                    File files = new File("/data/mobility/" + datasetDef.getId());
+                    if (files.listFiles() != null) {
+                        for (File f : files.listFiles()) {
+                            if (f.getName().contains(dataset.getId().toString())) {
+                                try (CSVReader csvReader = new CSVReaderBuilder(new FileReader(f)).withSkipLines(1).withCSVParser(rfc4180Parser).build()) {
+                                    String[] nextRecord;
+
+                                    while ((nextRecord = csvReader.readNext()) != null) {
+                                        VisitorTracks visitorTrack = createVisitorTrack(nextRecord);
+                                        if (visitorTrack != null) {
+                                            visitorTracks.add(visitorTrack);
+                                        }
+                                    }
+                                } catch (IOException | CsvValidationException e) {
+                                    logger.error(e.getMessage());
+                                }
+                                visitorTracks.sort(Comparator.comparing(VisitorTracks::getVisitorId)
+                                        .thenComparing(VisitorTracks::getFirstTimeSeen));
+                                for (VisitorTracks visitorTrack : visitorTracks) {
+
+                                }
+                            }
+                        }
+                    }
+
+                }
+
+
+
+
+            }
+        }
+
+
+
+
+        return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    private static VisitorTracks createVisitorTrack(String[] metadata) {
+        int siteId, regionId, populationType, globalId;
+        long visitorId;
+        String beginTime, endTime;
+        //site_id,region_id,visitor_id,device_id,device_type,population_type,global_id,first_time_seen,last_time_seen
+        try {
+
+            siteId = Integer.parseInt(metadata[0]);
+            regionId = Integer.parseInt(metadata[1]);
+            visitorId = Long.parseLong(metadata[2]);
+            populationType = Integer.parseInt(metadata[5]);
+            globalId = Integer.parseInt(metadata[6]);
+
+            beginTime = metadata[7];
+            endTime = metadata[8];
+
+            return new VisitorTracks(siteId, regionId, visitorId, populationType, globalId, beginTime, endTime);
+
+        } catch (Exception e) {
+            logger.error(e.getMessage());
+            return null;
+        }
+    }
+
+    private static VisitorTracksNew createVisitorTrackNew(String[] metadata) {
+        int datasetId, locationId;
+        String startTime, endTime, distance, anonymizedUniqueId;
+        //dataset_id,location_id,anonymized_unique_id,start_time,end_time,distance
+        try {
+
+            datasetId = Integer.parseInt(metadata[0]);
+            locationId = Integer.parseInt(metadata[1]);
+            anonymizedUniqueId = metadata[2];
+            startTime = metadata[3];
+            endTime = metadata[4];
+            distance = metadata[5];
+
+            return new VisitorTracksNew(datasetId, locationId, anonymizedUniqueId, startTime, endTime, distance);
+
+        } catch (Exception e) {
+            logger.error(e.getMessage());
+            return null;
+        }
+    }
 
     //TODO for client use
     @PostMapping("/mobility/anonymizationJob")

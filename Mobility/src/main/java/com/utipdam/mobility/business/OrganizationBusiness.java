@@ -52,4 +52,8 @@ public class OrganizationBusiness {
         }
     }
 
+    public void delete(UUID id) {
+        organizationService.delete(id);
+    }
+
 }

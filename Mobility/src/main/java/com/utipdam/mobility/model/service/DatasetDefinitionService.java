@@ -35,4 +35,8 @@ public class DatasetDefinitionService {
     public DatasetDefinition save(DatasetDefinition datasetDefinition) {
         return datasetDefinitionRepository.save(datasetDefinition);
     }
+
+    public void delete(UUID id) {
+        datasetDefinitionRepository.deleteById(id);
+    }
 }

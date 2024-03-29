@@ -5,6 +5,7 @@ import com.utipdam.mobility.model.service.UserDetailsServiceImpl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.http.HttpMethod;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
 import org.springframework.security.config.annotation.authentication.configuration.AuthenticationConfiguration;
@@ -59,8 +60,11 @@ public class SecurityConfig { // extends WebSecurityConfigurerAdapter {
                 .exceptionHandling(exception -> exception.authenticationEntryPoint(unauthorizedHandler))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth ->
-                        auth.requestMatchers("/**").permitAll()
-                                .anyRequest().authenticated()
+                        auth.requestMatchers(HttpMethod.DELETE, "/datasetDefinition/*").authenticated()
+                                .requestMatchers(HttpMethod.DELETE, "/dataset/*").authenticated()
+                                .requestMatchers(HttpMethod.DELETE, "/organization/*").authenticated()
+                                .requestMatchers(HttpMethod.POST, "/mobility/anonymizationJob").authenticated()
+                                .requestMatchers("/**").permitAll().anyRequest().authenticated()
                 );
 
         http.authenticationProvider(authenticationProvider());

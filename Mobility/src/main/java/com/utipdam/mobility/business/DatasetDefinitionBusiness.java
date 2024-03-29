@@ -94,4 +94,7 @@ public class DatasetDefinitionBusiness {
         }
     }
 
+    public void delete(UUID id) {
+        datasetDefinitionService.delete(id);
+    }
 }

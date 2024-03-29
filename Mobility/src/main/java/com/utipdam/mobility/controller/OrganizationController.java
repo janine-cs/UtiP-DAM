@@ -75,4 +75,10 @@ public class OrganizationController {
         response.put("data", organizationBusiness.update(id, organization));
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
+
+    @DeleteMapping("/organization/{id}")
+    public void delete(@PathVariable UUID id) {
+        organizationBusiness.delete(id);
+    }
+
 }

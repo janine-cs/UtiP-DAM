@@ -9,6 +9,7 @@ import com.utipdam.mobility.model.DatasetListDTO;
 import com.utipdam.mobility.model.DatasetResponseDTO;
 import com.utipdam.mobility.model.entity.Dataset;
 import com.utipdam.mobility.model.entity.DatasetDefinition;
+import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -16,6 +17,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.io.File;
+import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -30,6 +33,7 @@ public class DatasetController {
     @Autowired
     private DatasetBusiness datasetBusiness;
 
+    private final String PATH = "/data/mobility";
 
     @GetMapping("/datasets")
     public ResponseEntity<Map<String, Object>> getAll(@RequestParam(required = false) Boolean publish) {
@@ -39,16 +43,16 @@ public class DatasetController {
                 map(d -> {
                     List<DatasetListDTO> dsList = datasetBusiness.getAllByDatasetDefinitionId(d.getId());
 
-                        return new DatasetResponseDTO(d.getName(),
-                        d.getDescription(), d.getCountryCode(), d.getCity(),
-                        d.getFee(), d.getPublish(),
-                        d.getOrganization(), d.getId(),
-                        d.getUpdatedOn(), (long) dsList.stream().filter(o -> o != null && o.getDataPoints() != null)
-                                .mapToLong(DatasetListDTO::getDataPoints)
-                                .average()
-                                .orElse(0L), dsList);
+                    return new DatasetResponseDTO(d.getName(),
+                            d.getDescription(), d.getCountryCode(), d.getCity(),
+                            d.getFee(), d.getPublish(),
+                            d.getOrganization(), d.getId(),
+                            d.getUpdatedOn(), (long) dsList.stream().filter(o -> o != null && o.getDataPoints() != null)
+                            .mapToLong(DatasetListDTO::getDataPoints)
+                            .average()
+                            .orElse(0L), dsList);
 
-                    });
+                });
 
         if (publish == null) {
             response.put("data", data
@@ -196,4 +200,48 @@ public class DatasetController {
         response.put("data", datasetBusiness.update(id, dataset));
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
+
+    @DeleteMapping("/datasetDefinition/{id}")
+    public void delete(@PathVariable UUID id) {
+        Optional<DatasetDefinition> dd = datasetDefinitionBusiness.getById(id);
+        if (dd.isPresent()) {
+            DatasetDefinition datasetDef = dd.get();
+            if (datasetDef.getInternal() != null && !datasetDef.getInternal()){
+                try {
+                    FileUtils.deleteDirectory(new File(PATH + "/" + datasetDef.getId()));
+                } catch (IOException e) {
+                    logger.error(e.getMessage());
+                }
+            }
+
+            datasetDefinitionBusiness.delete(id);
+        }
+    }
+
+    @DeleteMapping("/dataset/{id}")
+    public void deleteDataset(@PathVariable UUID id) {
+        Optional<Dataset> ds = datasetBusiness.getById(id);
+        if (ds.isPresent()) {
+            Dataset dataset = ds.get();
+            Optional<DatasetDefinition> dd = datasetDefinitionBusiness.getById(dataset.getDatasetDefinition().getId());
+            if (dd.isPresent()) {
+                DatasetDefinition datasetDef = dd.get();
+                if (datasetDef.getInternal() != null && !datasetDef.getInternal()) {
+                    File files = new File(PATH + "/" + datasetDef.getId());
+                    if (files.listFiles() != null ){
+                        for (File f : files.listFiles()) {
+                            if (f.getName().contains(dataset.getId().toString())) {
+                                f.delete();
+                            }
+                        }
+                    }
+
+                }
+            }
+
+            datasetBusiness.delete(id);
+        }
+
+    }
+
 }

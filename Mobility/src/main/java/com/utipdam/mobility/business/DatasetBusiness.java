@@ -58,4 +58,10 @@ public class DatasetBusiness {
         }
     }
 
+    public void delete(UUID id) {
+
+
+        datasetService.delete(id);
+    }
+
 }

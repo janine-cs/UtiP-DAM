@@ -37,4 +37,8 @@ public class DatasetService {
     public Dataset save(Dataset organization) {
         return datasetRepository.save(organization);
     }
+
+    public void delete(UUID id) {
+        datasetRepository.deleteById(id);
+    }
 }

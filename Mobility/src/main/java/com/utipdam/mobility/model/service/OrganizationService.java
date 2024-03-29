@@ -39,4 +39,8 @@ public class OrganizationService {
     public Organization save(Organization organization) {
         return organizationRepository.save(organization);
     }
+
+    public void delete(UUID id) {
+        organizationRepository.deleteById(id);
+    }
 }
