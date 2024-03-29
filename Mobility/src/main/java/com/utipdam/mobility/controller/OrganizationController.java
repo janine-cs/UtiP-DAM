@@ -6,7 +6,6 @@ import com.utipdam.mobility.model.entity.Organization;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -44,16 +43,20 @@ public class OrganizationController {
 
     @PostMapping("/organization")
     public ResponseEntity<Map<String, Object>> save(@RequestBody Organization organization) {
-        HttpHeaders responseHeaders = new HttpHeaders();
+        Map<String, Object> response = new HashMap<>();
         if (organization.getName() == null) {
             logger.error("Name is required");
-            responseHeaders.set("error", "Name is required");
-            return ResponseEntity.badRequest()
-                    .headers(responseHeaders).body(null);
+            response.put("error", "Name is required");
+            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+        }
+        if (organization.getEmail() == null) {
+            logger.error("Email is required");
+            response.put("error", "Email is required");
+            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
         }
 
-        Map<String, Object> response = new HashMap<>();
-        Organization org = organizationBusiness.getByName(organization.getName());
+
+        Organization org = organizationBusiness.getByNameAndEmail(organization.getName(), organization.getEmail());
 
         if (org == null) {
             response.put("data", organizationBusiness.save(organization));

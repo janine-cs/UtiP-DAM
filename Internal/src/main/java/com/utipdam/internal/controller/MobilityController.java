@@ -137,7 +137,7 @@ public class MobilityController {
             try {
                 FileUploadUtil.saveFile(fileName, file, uploadPath);
 
-                File fi = new File(fileName);
+                File fi = new File(path + "/"+fileName);
                 fi.setReadable(true, false);
                 fi.setWritable(true, false);
             } catch (IOException e) {
@@ -148,7 +148,7 @@ public class MobilityController {
             }
             Path filePath = Paths.get(uploadPath + "/" + fileName);
             try (Stream<String> stream = Files.lines(filePath)) {
-                dataPoints = stream.count();
+                dataPoints = stream.count() - 1;
                 JSONObject request = new JSONObject();
                 request.put("id", uuid);
                 request.put("datasetDefinitionId", datasetDefinition);
@@ -166,7 +166,7 @@ public class MobilityController {
             }
 
             try {
-                long size = Files.size(filePath) - 1;
+                long size = Files.size(filePath);
 
                 JsonNode node = restTemplate.exchange(uri + "/dataset",
                         HttpMethod.POST, entity, JsonNode.class).getBody();

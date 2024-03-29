@@ -21,6 +21,7 @@ import org.springframework.core.io.Resource;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.util.UriComponentsBuilder;
 
 
@@ -39,6 +40,10 @@ public class MobilityController {
     private static final Logger logger = LoggerFactory.getLogger(MobilityController.class);
     private final String START_TIME = "start_time";
     private final String RESOLUTION = "daily";
+    private final String DATE_FORMAT = "yyyy-MM-dd";
+
+    @Value("${utipdam.app.maxFileSize}")
+    private long MAX_FILE_SIZE;
 
     @Autowired
     private DatasetDefinitionBusiness datasetDefinitionBusiness;
@@ -46,31 +51,13 @@ public class MobilityController {
     @Autowired
     private DatasetBusiness datasetBusiness;
 
-    private final String DATE_FORMAT = "yyyy-MM-dd";
-
-    @Value("${utipdam.app.maxFileSize}")
-    private long MAX_FILE_SIZE;
-
-    @PostMapping("/mobility/upload-test")
-    public ResponseEntity<Map<String, Object>> uploadTest(@RequestPart MultipartFile file) {
-        Map<String, Object> response = new HashMap<>();
-        return new ResponseEntity<>(response, HttpStatus.OK);
-    }
-
-    @PostMapping("/mobility/upload-k")
-    public ResponseEntity<Map<String, Object>> uploadTest(@RequestPart String k) {
-        Map<String, Object> response = new HashMap<>();
-        return new ResponseEntity<>(response, HttpStatus.OK);
-    }
-
-
     @PostMapping("/mobility/upload")
     public ResponseEntity<Map<String, Object>> upload(@RequestPart String k,
                                                       @RequestPart MultipartFile file) {
 
         Map<String, Object> response = new HashMap<>();
         String errorMessage;
-        if (!isNumeric(k)){
+        if (!isNumeric(k) || (Integer.parseInt(k) < 0  || Integer.parseInt(k) > 100)){
             errorMessage = "k must be a number between 0 - 100. You provided " + k;
             logger.error(errorMessage);
             response.put("error", errorMessage);
@@ -166,13 +153,13 @@ public class MobilityController {
                 return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
             }
 
-            File fi = new File(fileName);
+            File fi = new File(path +"/" +fileName);
             fi.setReadable(true, false);
             fi.setWritable(true, false);
 
             Path filePath = Paths.get(uploadPath + "/" + fileName);
             try (Stream<String> stream = Files.lines(filePath)) {
-                dataPoints = stream.count();
+                dataPoints = stream.count() - 1;
                 Dataset dataset = new Dataset();
                 dataset.setId(uuid);
                 dataset.setDatasetDefinition(ds);
@@ -186,7 +173,7 @@ public class MobilityController {
 
                 Dataset d = datasetBusiness.save(dataset);
 
-                long size = Files.size(filePath) - 1;
+                long size = Files.size(filePath);
 
                 FileUploadResponse fileUploadResponse = new FileUploadResponse();
                 fileUploadResponse.setDatasetDefinitionId(ds.getId());
@@ -262,6 +249,7 @@ public class MobilityController {
                                         .body(resource);
                             } catch (IOException e) {
                                 logger.error(e.getMessage());
+                                return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
                             }
                         }
                     }
@@ -286,6 +274,7 @@ public class MobilityController {
 
                         } catch (Exception ex) {
                             logger.error(ex.getMessage());
+                            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
                         }
                     }
 
@@ -298,15 +287,39 @@ public class MobilityController {
 
 
     //TODO for client use
-    //creates new dataset and mobility record
     @PostMapping("/mobility/anonymizationJob")
     public ResponseEntity<Resource> anonymizeExternalAPI(@RequestPart DatasetDefinitionDTO dataset,
-                                                         @RequestPart("file") MultipartFile file) {
+                                                         @RequestPart MultipartFile file) {
+        String errorMessage;
 
         if (dataset.getName() == null) {
-            logger.error("Name is required");
-            return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+            errorMessage = "Name is required";
+            logger.error(errorMessage);
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, errorMessage);
         }
+
+        if (dataset.getK() == null  || (dataset.getK() < 0  || dataset.getK() > 100)){
+            errorMessage = "k must be a number between 0 - 100. You provided " + dataset.getK();
+            logger.error(errorMessage);
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, errorMessage);
+        }
+
+        if (!Objects.requireNonNull(file.getOriginalFilename()).endsWith(".csv")){
+            errorMessage = "Please upload a csv file. You provided " + file.getOriginalFilename();
+            logger.error(errorMessage);
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, errorMessage);
+        }
+
+        if (file.getSize() > MAX_FILE_SIZE) {
+            errorMessage = "Exceeded max file size " + MAX_FILE_SIZE;
+            logger.error(errorMessage);
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, errorMessage);
+        }
+
 
         DatasetDefinition ds = datasetDefinitionBusiness.save(dataset);
 
@@ -319,8 +332,10 @@ public class MobilityController {
             fOrg.mkdirs();
             Files.setPosixFilePermissions(Path.of("/data/mobility/" + ds.getId()), PosixFilePermissions.fromString("rwxrwxrwx"));
         } catch (IOException e) {
-            logger.error(e.getMessage());
-            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+            errorMessage = e.getMessage();
+            logger.error(errorMessage);
+            throw new ResponseStatusException(
+                    HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
         }
 
         Path uploadPath = Paths.get(path);
@@ -340,39 +355,64 @@ public class MobilityController {
                 if (dateIndex > 0 && (line = br.readLine()) != null) {
                     csvDate = line.split(",")[dateIndex];
                     csvDate = csvDate.split(" ")[0];
+                    if (!GenericValidator.isDate(csvDate, DATE_FORMAT, true)){
+                        errorMessage = "start_time must be yyyy-MM-dd HH:mm:ss format";
+                        logger.error(errorMessage);
+                        throw new ResponseStatusException(
+                                HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
+                    }
                 }
             }
             br.close();
         } catch (IOException e) {
-            logger.error(e.getMessage());
-            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+            errorMessage = e.getMessage();
+            logger.error(errorMessage);
+            throw new ResponseStatusException(
+                    HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
         }
 
-        if (csvDate != null) {
-            Dataset dt = new Dataset();
-            dt.setResolution(dataset.getResolution());
-            dt.setDatasetDefinition(ds);
-            dt.setStartDate(Date.valueOf(csvDate));
-            dt.setEndDate(Date.valueOf(csvDate));
-            dt.setK(dataset.getK());
 
-            Dataset d = datasetBusiness.save(dt);
+        if (csvDate != null){
+            UUID uuid = UUID.randomUUID();
+            fileName = "dataset-" + uuid + "-" + csvDate + ".csv";
 
-            fileName = "dataset-" + d.getId() + "-" + csvDate + ".csv";
-            StringBuffer inputBuffer = new StringBuffer();
-            HttpHeaders responseHeaders = new HttpHeaders();
+            //process anonymization
 
+
+            long dataPoints;
             try {
                 FileUploadUtil.saveFile(fileName, file, uploadPath);
+            } catch (IOException e) {
+                errorMessage = e.getMessage();
+                logger.error(errorMessage);
+                throw new ResponseStatusException(
+                        HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
+            }
 
-                File fi = new File(fileName);
-                fi.setReadable(true, false);
-                fi.setWritable(true, false);
+            File fi = new File(path +"/" +fileName);
+            fi.setReadable(true, false);
+            fi.setWritable(true, false);
+
+            Path filePath = Paths.get(uploadPath + "/" + fileName);
+            try (Stream<String> stream = Files.lines(filePath)) {
+                dataPoints = stream.count() - 1;
+                Dataset d = new Dataset();
+                d.setId(uuid);
+                d.setDatasetDefinition(ds);
+                d.setStartDate(Date.valueOf(csvDate));
+                d.setEndDate(Date.valueOf(csvDate));
+                d.setResolution(dataset.getResolution());
+                d.setK(dataset.getK());
+                d.setDataPoints(dataPoints);
+
+                datasetBusiness.save(d);
 
                 br = new BufferedReader(
                         new InputStreamReader(new FileSystemResource("/data/mobility/" + ds.getId() + "/" + fileName).getInputStream()));
 
                 String lineDownload;
+                StringBuffer inputBuffer = new StringBuffer();
+                HttpHeaders responseHeaders = new HttpHeaders();
 
                 while ((lineDownload = br.readLine()) != null) {
                     inputBuffer.append(lineDownload);
@@ -386,22 +426,26 @@ public class MobilityController {
                         .filename(fi.getName())
                         .build();
                 responseHeaders.setContentDisposition(contentDisposition);
-                InputStream stream = new ByteArrayInputStream(inputStr.getBytes(StandardCharsets.UTF_8));
-                InputStreamResource resource = new InputStreamResource(stream);
+                InputStream is = new ByteArrayInputStream(inputStr.getBytes(StandardCharsets.UTF_8));
+                InputStreamResource resource = new InputStreamResource(is);
                 return ResponseEntity.ok()
                         .headers(responseHeaders)
-                        .contentLength(stream.available())
+                        .contentLength(is.available())
                         .contentType(MediaType.APPLICATION_OCTET_STREAM)
                         .body(resource);
 
             } catch (IOException e) {
-                logger.error(e.getMessage());
-                return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+                errorMessage = e.getMessage();
+                logger.error(errorMessage);
+                throw new ResponseStatusException(
+                        HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
             }
-
         }
 
-        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+        errorMessage = "An error occurred while processing your request";
+        logger.error(errorMessage);
+        throw new ResponseStatusException(
+                HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
     }
 
     public static String getRandomNumberString() {

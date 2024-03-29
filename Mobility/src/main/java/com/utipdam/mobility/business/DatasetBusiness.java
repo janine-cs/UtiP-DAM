@@ -20,10 +20,6 @@ public class DatasetBusiness {
     @Autowired
     private DatasetService datasetService;
 
-    public List<Dataset> getAllLatest() {
-        return datasetService.findAllByOrderByStartDateDesc();
-    }
-
     public List<DatasetListDTO> getAllByDatasetDefinitionId(UUID datasetDefinitionId) {
         return datasetService.findAllDatasetDefinitionId(datasetDefinitionId).stream().map(d -> new DatasetListDTO(d.getId(),
                 d.getResolution(), d.getStartDate(), d.getEndDate(), d.getK(), d.getDataPoints(), d.getUpdatedOn())).collect(Collectors.toList());

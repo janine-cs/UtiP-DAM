@@ -47,7 +47,7 @@ public class DatasetDefinitionBusiness {
         ds.setPublish(dataset.getPublish() != null && dataset.getPublish());
 
         if (dataset.getOrganization() != null){
-            Organization response = organizationService.findByName(dataset.getOrganization().getName());
+            Organization response = organizationService.findByNameAndEmail(dataset.getOrganization().getName(), dataset.getOrganization().getEmail());
             if (response == null) {
                 UUID orgUUID = UUID.randomUUID();
                 Organization org = new Organization(orgUUID, dataset.getOrganization().getName(), dataset.getOrganization().getEmail());
@@ -75,7 +75,7 @@ public class DatasetDefinitionBusiness {
             if (dataset.getOrganization() == null) {
                 data.setOrganization(ds.get().getOrganization());
             }else{
-                Organization response = organizationService.findByName(dataset.getOrganization().getName());
+                Organization response = organizationService.findByNameAndEmail(dataset.getOrganization().getName(), dataset.getOrganization().getEmail());
                 if (response == null) {
                     UUID orgUUID = UUID.randomUUID();
                     Organization org = new Organization(orgUUID, dataset.getOrganization().getName(), dataset.getOrganization().getEmail());

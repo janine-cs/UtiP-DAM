@@ -11,5 +11,6 @@ import java.util.UUID;
 public interface OrganizationRepository extends JpaRepository<Organization, UUID> {
     List<Organization> findAll();
     Optional<Organization> findById(@Param("id") UUID id);
+    Organization findByNameAndEmail(@Param("name") String name, @Param("email") String email);
     Organization findByName(@Param("name") String name);
 }

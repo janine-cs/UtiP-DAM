@@ -29,7 +29,7 @@ public class DatasetDefinitionService {
     }
 
     public List<DatasetDefinition> findAll() {
-        return datasetDefinitionRepository.findAll();
+        return datasetDefinitionRepository.findAllByOrderByUpdatedOnDesc();
     }
 
     public DatasetDefinition save(DatasetDefinition datasetDefinition) {

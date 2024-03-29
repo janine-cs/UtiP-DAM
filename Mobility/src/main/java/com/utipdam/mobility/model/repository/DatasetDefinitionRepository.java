@@ -9,7 +9,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface DatasetDefinitionRepository extends JpaRepository<DatasetDefinition, UUID> {
-    List<DatasetDefinition> findAll();
+    List<DatasetDefinition> findAllByOrderByUpdatedOnDesc();
     Optional<DatasetDefinition> findById(@Param("id") UUID id);
     DatasetDefinition findByName(@Param("name") String name);
 }

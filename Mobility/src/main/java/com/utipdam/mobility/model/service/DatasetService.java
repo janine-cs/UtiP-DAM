@@ -30,10 +30,6 @@ public class DatasetService {
         return datasetRepository.findByDatasetDefinitionIdAndStartDate(datasetDefinitionId,startDate);
     }
 
-    public List<Dataset> findAllByOrderByStartDateDesc() {
-        return datasetRepository.findAllByOrderByStartDateDesc();
-    }
-
     public List<Dataset> findAllDatasetDefinitionId(UUID datasetDefinitionId) {
         return datasetRepository.findAllByDatasetDefinition_Id(datasetDefinitionId);
     }

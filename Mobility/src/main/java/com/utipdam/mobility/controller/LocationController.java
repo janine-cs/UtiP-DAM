@@ -42,27 +42,24 @@ public class LocationController {
 
     @PostMapping("/location")
     public ResponseEntity<Map<String, Object>> save(@RequestBody Location location) {
-        HttpHeaders responseHeaders = new HttpHeaders();
+        Map<String, Object> response = new HashMap<>();
         if (location.getId() == null) {
             logger.error("Id is required");
-            responseHeaders.set("error", "Id is required");
-            return ResponseEntity.badRequest()
-                    .headers(responseHeaders).body(null);
+            response.put("error", "Id is required");
+            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
         }
         if (location.getDatasetDefinitionId() == null) {
             logger.error("Dataset definition id is required");
-            responseHeaders.set("error", "Dataset definition id is required");
-            return ResponseEntity.badRequest()
-                    .headers(responseHeaders).body(null);
+            response.put("error", "Dataset definition id is required");
+            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
         }
         if (location.getName() == null) {
             logger.error("Name is required");
-            responseHeaders.set("error", "Name is required");
-            return ResponseEntity.badRequest()
-                    .headers(responseHeaders).body(null);
+            response.put("error", "Name is required");
+            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
         }
 
-        Map<String, Object> response = new HashMap<>();
+
         Optional<Location> loc = locationBusiness.getById(location.getId(), location.getDatasetDefinitionId());
 
         if (loc.isPresent()) {

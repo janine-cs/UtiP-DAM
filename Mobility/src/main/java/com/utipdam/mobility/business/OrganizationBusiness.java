@@ -24,6 +24,11 @@ public class OrganizationBusiness {
         return organizationService.findByName(name);
     }
 
+    public Organization getByNameAndEmail(String name, String email) {
+        return organizationService.findByNameAndEmail(name, email);
+    }
+
+
     public Optional<Organization> getById(UUID id) {
         return organizationService.findById(id);
     }

@@ -20,6 +20,10 @@ public class OrganizationService {
         this.organizationRepository = organizationRepository;
     }
 
+    public Organization findByNameAndEmail(String name, String email) {
+        return organizationRepository.findByNameAndEmail(name, email);
+    }
+
     public Organization findByName(String name) {
         return organizationRepository.findByName(name);
     }
