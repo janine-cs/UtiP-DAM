@@ -1,6 +1,5 @@
 package com.utipdam.mobility.model.entity;
 
-import com.utipdam.mobility.model.entity.ERole;
 import jakarta.persistence.*;
 import lombok.Data;
 

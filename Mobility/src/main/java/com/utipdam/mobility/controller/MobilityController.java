@@ -9,10 +9,7 @@ import com.utipdam.mobility.FileUploadUtil;
 import com.utipdam.mobility.business.DatasetDefinitionBusiness;
 import com.utipdam.mobility.business.DatasetBusiness;
 import com.utipdam.mobility.config.RestTemplateClient;
-import com.utipdam.mobility.model.DatasetDefinitionDTO;
-import com.utipdam.mobility.model.FileUploadResponse;
-import com.utipdam.mobility.model.VisitorTracks;
-import com.utipdam.mobility.model.VisitorTracksNew;
+import com.utipdam.mobility.model.*;
 import com.utipdam.mobility.model.entity.Dataset;
 import com.utipdam.mobility.model.entity.DatasetDefinition;
 import org.apache.commons.io.filefilter.WildcardFileFilter;
@@ -40,12 +37,13 @@ import java.nio.file.Paths;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.sql.Date;
 import java.util.*;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 @RestController
 public class MobilityController {
     private static final Logger logger = LoggerFactory.getLogger(MobilityController.class);
-    private final String START_TIME = "start_time";
+    private final String START_TIME = "first_time_seen";
     private final String RESOLUTION = "daily";
     private final String DATE_FORMAT = "yyyy-MM-dd";
 
@@ -64,14 +62,14 @@ public class MobilityController {
 
         Map<String, Object> response = new HashMap<>();
         String errorMessage;
-        if (!isNumeric(k) || (Integer.parseInt(k) < 0  || Integer.parseInt(k) > 100)){
+        if (!isNumeric(k) || (Integer.parseInt(k) < 0 || Integer.parseInt(k) > 100)) {
             errorMessage = "k must be a number between 0 - 100. You provided " + k;
             logger.error(errorMessage);
             response.put("error", errorMessage);
             return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
         }
 
-        if (!Objects.requireNonNull(file.getOriginalFilename()).endsWith(".csv")){
+        if (!Objects.requireNonNull(file.getOriginalFilename()).endsWith(".csv")) {
             errorMessage = "Please upload a csv file. You provided " + file.getOriginalFilename();
             logger.error(errorMessage);
             response.put("error", errorMessage);
@@ -124,10 +122,14 @@ public class MobilityController {
             if (line != null) {
                 nextRecord = line.split(",");
                 int dateIndex = Arrays.asList(nextRecord).indexOf(START_TIME);
+                if (dateIndex < 0){
+                    dateIndex = Arrays.asList(nextRecord).indexOf("start_time");
+                }
+
                 if (dateIndex > 0 && (line = br.readLine()) != null) {
                     csvDate = line.split(",")[dateIndex];
                     csvDate = csvDate.split(" ")[0];
-                    if (!GenericValidator.isDate(csvDate, DATE_FORMAT, true)){
+                    if (!GenericValidator.isDate(csvDate, DATE_FORMAT, true)) {
                         errorMessage = "start_time must be yyyy-MM-dd HH:mm:ss format";
                         logger.error(errorMessage);
                         response.put("error", errorMessage);
@@ -143,7 +145,7 @@ public class MobilityController {
             return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
         }
 
-        if (csvDate != null){
+        if (csvDate != null) {
             UUID uuid = UUID.randomUUID();
             fileName = "dataset-" + uuid + "-" + csvDate + ".csv";
 
@@ -160,7 +162,7 @@ public class MobilityController {
                 return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
             }
 
-            File fi = new File(path +"/" +fileName);
+            File fi = new File(path + "/" + fileName);
             fi.setReadable(true, false);
             fi.setWritable(true, false);
 
@@ -202,11 +204,12 @@ public class MobilityController {
         return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
 
     }
+
     public static boolean isNumeric(String str) {
         try {
             Double.parseDouble(str);
             return true;
-        } catch(NumberFormatException e){
+        } catch (NumberFormatException e) {
             return false;
         }
     }
@@ -266,7 +269,7 @@ public class MobilityController {
                     RestTemplateClient restTemplate = new RestTemplateClient();
                     String domain = df.get().getServer().getDomain();
 
-                    if (domain != null){
+                    if (domain != null) {
                         String uri = domain + "/internal/mobility/download";
                         logger.info(uri);
                         String url = UriComponentsBuilder
@@ -294,9 +297,24 @@ public class MobilityController {
 
     @GetMapping("/mobility/visitorDetection")
     public ResponseEntity<Map<String, Object>> findMeHere(@RequestParam Integer[] locationIds,
-                                                          @RequestParam UUID datasetId){
+                                                          @RequestParam UUID datasetId) {
         Map<String, Object> response = new HashMap<>();
+        String errorMessage;
+//        if (locationIds.length < 2) {
+//            errorMessage = "Please select 2 or more locations";
+//            logger.error(errorMessage);
+//            response.put("error", errorMessage);
+//            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+//        }
 
+        if (Arrays.stream(locationIds).anyMatch(item -> item == 0)) {
+            errorMessage = "location id 0 is invalid";
+            logger.error(errorMessage);
+            response.put("error", errorMessage);
+            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+        }
+
+        List<Integer> locIdList = Arrays.stream(locationIds).toList();
         Optional<Dataset> datasetIdCheck = datasetBusiness.getById(datasetId);
         if (datasetIdCheck.isPresent()) {
             Dataset dataset = datasetIdCheck.get();
@@ -306,10 +324,10 @@ public class MobilityController {
                 List<VisitorTracks> visitorTracks = new ArrayList<>();
                 RFC4180Parser rfc4180Parser = new RFC4180ParserBuilder().build();
 
-                if (datasetDef.getInternal() != null && !datasetDef.getInternal()) {
+                if (datasetDef.getInternal() == null || !datasetDef.getInternal()) {
                     File files = new File("/data/mobility/" + datasetDef.getId());
                     if (files.listFiles() != null) {
-                        for (File f : files.listFiles()) {
+                        for (File f : Objects.requireNonNull(files.listFiles())) {
                             if (f.getName().contains(dataset.getId().toString())) {
                                 try (CSVReader csvReader = new CSVReaderBuilder(new FileReader(f)).withSkipLines(1).withCSVParser(rfc4180Parser).build()) {
                                     String[] nextRecord;
@@ -321,27 +339,58 @@ public class MobilityController {
                                         }
                                     }
                                 } catch (IOException | CsvValidationException e) {
-                                    logger.error(e.getMessage());
+                                    errorMessage = e.getMessage();
+                                    logger.error(errorMessage);
+                                    response.put("error", errorMessage);
+                                    return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
                                 }
                                 visitorTracks.sort(Comparator.comparing(VisitorTracks::getVisitorId)
                                         .thenComparing(VisitorTracks::getFirstTimeSeen));
-                                for (VisitorTracks visitorTrack : visitorTracks) {
+                                Map<Long, List<Integer>> vIdMap = visitorTracks.stream().filter(p -> p.getRegionId() > 0)
+                                        .collect(Collectors.groupingBy(
+                                                VisitorTracks::getVisitorId,
+                                                Collectors.mapping(VisitorTracks::getRegionId, Collectors.toList())));
 
+                                int i = 0;
+                                for (Map.Entry<Long, List<Integer>> entry : vIdMap.entrySet()) {
+                                    if (entry.getValue().equals(locIdList)) {
+                                        i++;
+                                    }
                                 }
+
+                                response.put("count", i);
+                                return new ResponseEntity<>(response, HttpStatus.OK);
                             }
                         }
                     }
+                } else {
+                    logger.info("retrieving result from internal server");
+                    //get response from internal archive server
+                    RestTemplateClient restTemplate = new RestTemplateClient();
+                    String domain = dd.get().getServer().getDomain();
 
+                    if (domain != null) {
+                        String uri = domain + "/internal/mobility/visitorDetection";
+                        logger.info(uri);
+                        String url = UriComponentsBuilder
+                                .fromUriString(uri)
+                                .queryParam("datasetDefinitionId", datasetDef.getId())
+                                .queryParam("datasetId", dataset.getId())
+                                .queryParam("locationIds", Arrays.toString(locationIds))
+                                .build().toUriString();
+                        try {
+                            return restTemplate.restTemplate().exchange(url,
+                                    HttpMethod.GET, null, new ParameterizedTypeReference<>() {
+                                    });
+
+                        } catch (Exception ex) {
+                            logger.error(ex.getMessage());
+                            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+                        }
+                    }
                 }
-
-
-
-
             }
         }
-
-
-
 
         return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
     }
@@ -404,14 +453,14 @@ public class MobilityController {
                     HttpStatus.BAD_REQUEST, errorMessage);
         }
 
-        if (dataset.getK() == null  || (dataset.getK() < 0  || dataset.getK() > 100)){
+        if (dataset.getK() == null || (dataset.getK() < 0 || dataset.getK() > 100)) {
             errorMessage = "k must be a number between 0 - 100. You provided " + dataset.getK();
             logger.error(errorMessage);
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST, errorMessage);
         }
 
-        if (!Objects.requireNonNull(file.getOriginalFilename()).endsWith(".csv")){
+        if (!Objects.requireNonNull(file.getOriginalFilename()).endsWith(".csv")) {
             errorMessage = "Please upload a csv file. You provided " + file.getOriginalFilename();
             logger.error(errorMessage);
             throw new ResponseStatusException(
@@ -460,7 +509,7 @@ public class MobilityController {
                 if (dateIndex > 0 && (line = br.readLine()) != null) {
                     csvDate = line.split(",")[dateIndex];
                     csvDate = csvDate.split(" ")[0];
-                    if (!GenericValidator.isDate(csvDate, DATE_FORMAT, true)){
+                    if (!GenericValidator.isDate(csvDate, DATE_FORMAT, true)) {
                         errorMessage = "start_time must be yyyy-MM-dd HH:mm:ss format";
                         logger.error(errorMessage);
                         throw new ResponseStatusException(
@@ -477,7 +526,7 @@ public class MobilityController {
         }
 
 
-        if (csvDate != null){
+        if (csvDate != null) {
             UUID uuid = UUID.randomUUID();
             fileName = "dataset-" + uuid + "-" + csvDate + ".csv";
 
@@ -494,7 +543,7 @@ public class MobilityController {
                         HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
             }
 
-            File fi = new File(path +"/" +fileName);
+            File fi = new File(path + "/" + fileName);
             fi.setReadable(true, false);
             fi.setWritable(true, false);
 
