@@ -29,7 +29,6 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.util.UriComponentsBuilder;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -263,58 +262,54 @@ public class MobilityController {
     }
 
     @GetMapping("/mobility/visitorDetection")
-    public ResponseEntity<Map<String, Object>> findMeHere(@RequestParam String datasetDefinitionId,
+    public Integer findMeHere(@RequestParam String datasetDefinitionId,
                                                           @RequestParam String datasetId,
                                                           @RequestParam String locationIds) {
-        Map<String, Object> response = new HashMap<>();
-
         String errorMessage;
         List<VisitorTracks> visitorTracks = new ArrayList<>();
         RFC4180Parser rfc4180Parser = new RFC4180ParserBuilder().build();
-        int[] arr = Arrays.stream(locationIds.substring(1, locationIds.length()-1).split(","))
+        int[] arr = Arrays.stream(locationIds.substring(1, locationIds.length() - 1).split(","))
                 .map(String::trim).mapToInt(Integer::parseInt).toArray();
         List<Integer> locIdList = Arrays.stream(arr).boxed().collect(Collectors.toList());
-        File files = new File("/data/mobility/" + datasetDefinitionId);
-        if (files.listFiles() != null) {
-            for (File f : Objects.requireNonNull(files.listFiles())) {
-                if (f.getName().contains(datasetId.toString())) {
-                    try (CSVReader csvReader = new CSVReaderBuilder(new FileReader(f)).withSkipLines(1).withCSVParser(rfc4180Parser).build()) {
-                        String[] nextRecord;
+        File file = new File("/data/mobility/" + datasetDefinitionId);
+        logger.info(datasetDefinitionId);
+        logger.info(datasetId);
+        File[] files = file.listFiles((d, name) -> name.contains(datasetId));
+        if (files != null && files.length > 0) {
+            try (CSVReader csvReader = new CSVReaderBuilder(new FileReader(files[0])).withSkipLines(1).withCSVParser(rfc4180Parser).build()) {
+                String[] nextRecord;
 
-                        while ((nextRecord = csvReader.readNext()) != null) {
-                            VisitorTracks visitorTrack = createVisitorTrack(nextRecord);
-                            if (visitorTrack != null) {
-                                visitorTracks.add(visitorTrack);
-                            }
-                        }
-                    } catch (IOException | CsvValidationException e) {
-                        errorMessage = e.getMessage();
-                        logger.error(errorMessage);
-                        response.put("error", errorMessage);
-                        return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+                while ((nextRecord = csvReader.readNext()) != null) {
+                    VisitorTracks visitorTrack = createVisitorTrack(nextRecord);
+                    if (visitorTrack != null) {
+                        visitorTracks.add(visitorTrack);
                     }
-                    visitorTracks.sort(Comparator.comparing(VisitorTracks::getVisitorId)
-                            .thenComparing(VisitorTracks::getFirstTimeSeen));
-                    Map<Long, List<Integer>> vIdMap = visitorTracks.stream().filter(p -> p.getRegionId() > 0)
-                            .collect(Collectors.groupingBy(
-                                    VisitorTracks::getVisitorId,
-                                    Collectors.mapping(VisitorTracks::getRegionId, Collectors.toList())));
+                }
+            } catch (IOException | CsvValidationException e) {
+                errorMessage = e.getMessage();
+                logger.error(errorMessage);
+                return null;
+            }
 
-                    int i = 0;
-                    for (Map.Entry<Long, List<Integer>> entry : vIdMap.entrySet()) {
-                        if (entry.getValue().equals(locIdList)) {
-                            i++;
-                        }
-                    }
+            visitorTracks.sort(Comparator.comparing(VisitorTracks::getVisitorId)
+                    .thenComparing(VisitorTracks::getFirstTimeSeen));
+            Map<Long, List<Integer>> vIdMap = visitorTracks.stream().filter(p -> p.getRegionId() > 0)
+                    .collect(Collectors.groupingBy(
+                            VisitorTracks::getVisitorId,
+                            Collectors.mapping(VisitorTracks::getRegionId, Collectors.toList())));
 
-                    response.put("count", i);
-                    return new ResponseEntity<>(response, HttpStatus.OK);
+            int i = 0;
+            for (Map.Entry<Long, List<Integer>> entry : vIdMap.entrySet()) {
+                if (Collections.indexOfSubList(entry.getValue(), locIdList) > -1) {
+                    i++;
                 }
             }
+
+            return i;
+        } else {
+            logger.error("No matching dataset definition");
+            return null;
         }
-
-
-        return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
     private static VisitorTracks createVisitorTrack(String[] metadata) {

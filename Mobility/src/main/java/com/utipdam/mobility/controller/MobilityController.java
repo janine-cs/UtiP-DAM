@@ -1,5 +1,9 @@
 package com.utipdam.mobility.controller;
 
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.opencsv.CSVReader;
 import com.opencsv.CSVReaderBuilder;
 import com.opencsv.RFC4180Parser;
@@ -122,7 +126,7 @@ public class MobilityController {
             if (line != null) {
                 nextRecord = line.split(",");
                 int dateIndex = Arrays.asList(nextRecord).indexOf(START_TIME);
-                if (dateIndex < 0){
+                if (dateIndex < 0) {
                     dateIndex = Arrays.asList(nextRecord).indexOf("start_time");
                 }
 
@@ -325,44 +329,46 @@ public class MobilityController {
                 RFC4180Parser rfc4180Parser = new RFC4180ParserBuilder().build();
 
                 if (datasetDef.getInternal() == null || !datasetDef.getInternal()) {
-                    File files = new File("/data/mobility/" + datasetDef.getId());
-                    if (files.listFiles() != null) {
-                        for (File f : Objects.requireNonNull(files.listFiles())) {
-                            if (f.getName().contains(dataset.getId().toString())) {
-                                try (CSVReader csvReader = new CSVReaderBuilder(new FileReader(f)).withSkipLines(1).withCSVParser(rfc4180Parser).build()) {
-                                    String[] nextRecord;
+                    File file = new File("/data/mobility/" + datasetDef.getId());
+                    File[] files = file.listFiles((d, name) -> name.contains(dataset.getId().toString()));
+                    if (files != null && files.length > 0) {
+                        if (files[0].getName().contains(dataset.getId().toString())) {
+                            try (CSVReader csvReader = new CSVReaderBuilder(new FileReader(files[0])).withSkipLines(1).withCSVParser(rfc4180Parser).build()) {
+                                String[] nextRecord;
 
-                                    while ((nextRecord = csvReader.readNext()) != null) {
-                                        VisitorTracks visitorTrack = createVisitorTrack(nextRecord);
-                                        if (visitorTrack != null) {
-                                            visitorTracks.add(visitorTrack);
-                                        }
-                                    }
-                                } catch (IOException | CsvValidationException e) {
-                                    errorMessage = e.getMessage();
-                                    logger.error(errorMessage);
-                                    response.put("error", errorMessage);
-                                    return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
-                                }
-                                visitorTracks.sort(Comparator.comparing(VisitorTracks::getVisitorId)
-                                        .thenComparing(VisitorTracks::getFirstTimeSeen));
-                                Map<Long, List<Integer>> vIdMap = visitorTracks.stream().filter(p -> p.getRegionId() > 0)
-                                        .collect(Collectors.groupingBy(
-                                                VisitorTracks::getVisitorId,
-                                                Collectors.mapping(VisitorTracks::getRegionId, Collectors.toList())));
-
-                                int i = 0;
-                                for (Map.Entry<Long, List<Integer>> entry : vIdMap.entrySet()) {
-                                    if (entry.getValue().equals(locIdList)) {
-                                        i++;
+                                while ((nextRecord = csvReader.readNext()) != null) {
+                                    VisitorTracks visitorTrack = createVisitorTrack(nextRecord);
+                                    if (visitorTrack != null) {
+                                        visitorTracks.add(visitorTrack);
                                     }
                                 }
-
-                                response.put("count", i);
-                                return new ResponseEntity<>(response, HttpStatus.OK);
+                            } catch (IOException | CsvValidationException e) {
+                                errorMessage = e.getMessage();
+                                logger.error(errorMessage);
+                                response.put("error", errorMessage);
+                                return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
                             }
+                            visitorTracks.sort(Comparator.comparing(VisitorTracks::getVisitorId)
+                                    .thenComparing(VisitorTracks::getFirstTimeSeen));
+                            Map<Long, List<Integer>> vIdMap = visitorTracks.stream().filter(p -> p.getRegionId() > 0)
+                                    .collect(Collectors.groupingBy(
+                                            VisitorTracks::getVisitorId,
+                                            Collectors.mapping(VisitorTracks::getRegionId, Collectors.toList())));
+
+                            int i = 0;
+                            for (Map.Entry<Long, List<Integer>> entry : vIdMap.entrySet()) {
+                                if (Collections.indexOfSubList(entry.getValue(), locIdList) > -1) {
+                                    i++;
+                                }
+                            }
+
+                            response.put("count", i);
+                            return new ResponseEntity<>(response, HttpStatus.OK);
                         }
+
                     }
+
+
                 } else {
                     logger.info("retrieving result from internal server");
                     //get response from internal archive server
@@ -371,27 +377,44 @@ public class MobilityController {
 
                     if (domain != null) {
                         String uri = domain + "/internal/mobility/visitorDetection";
-                        logger.info(uri);
+
                         String url = UriComponentsBuilder
                                 .fromUriString(uri)
                                 .queryParam("datasetDefinitionId", datasetDef.getId())
-                                .queryParam("datasetId", dataset.getId())
+                                .queryParam("datasetId", datasetId)
                                 .queryParam("locationIds", Arrays.toString(locationIds))
                                 .build().toUriString();
+                        logger.info(url);
                         try {
-                            return restTemplate.restTemplate().exchange(url,
-                                    HttpMethod.GET, null, new ParameterizedTypeReference<>() {
-                                    });
-
+                            JsonNode node = restTemplate.restTemplate().exchange(url,
+                                    HttpMethod.GET, null, JsonNode.class).getBody();
+                            if (node != null) {
+                                JsonFactory jsonFactory = new JsonFactory();
+                                ObjectMapper objectMapper = new ObjectMapper(jsonFactory);
+                                JsonNode jsonNode = objectMapper.readValue(node.toString(), JsonNode.class);
+                                if (jsonNode == null) {
+                                    errorMessage="An error occurred while processing your request";
+                                    logger.error(errorMessage);
+                                    response.put("error", errorMessage);
+                                    return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+                                }else{
+                                    response.put("count", jsonNode.asInt());
+                                    return new ResponseEntity<>(response, HttpStatus.OK);
+                                }
+                            }
                         } catch (Exception ex) {
-                            logger.error(ex.getMessage());
+                            errorMessage = ex.getMessage();
+                            logger.error(errorMessage);
+                            response.put("error", errorMessage);
                             return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
                         }
                     }
                 }
             }
         }
-
+        errorMessage = "An error occurred while processing your request";
+        logger.error(errorMessage);
+        response.put("error", errorMessage);
         return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
     }
 
