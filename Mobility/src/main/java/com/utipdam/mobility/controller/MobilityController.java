@@ -1,7 +1,7 @@
 package com.utipdam.mobility.controller;
 
 import com.fasterxml.jackson.core.JsonFactory;
-import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.opencsv.CSVReader;
@@ -12,21 +12,23 @@ import com.opencsv.exceptions.CsvValidationException;
 import com.utipdam.mobility.FileUploadUtil;
 import com.utipdam.mobility.business.DatasetDefinitionBusiness;
 import com.utipdam.mobility.business.DatasetBusiness;
+import com.utipdam.mobility.config.AuthTokenFilter;
 import com.utipdam.mobility.config.RestTemplateClient;
 import com.utipdam.mobility.model.*;
-import com.utipdam.mobility.model.entity.Dataset;
-import com.utipdam.mobility.model.entity.DatasetDefinition;
-import org.apache.commons.io.filefilter.WildcardFileFilter;
+import com.utipdam.mobility.model.entity.*;
+import com.utipdam.mobility.model.repository.RoleRepository;
+import com.utipdam.mobility.model.repository.UserRepository;
 import org.apache.commons.validator.GenericValidator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
 import org.springframework.http.*;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
@@ -50,6 +52,8 @@ public class MobilityController {
     private final String START_TIME = "first_time_seen";
     private final String RESOLUTION = "daily";
     private final String DATE_FORMAT = "yyyy-MM-dd";
+    private final Integer HIGH_RISK = 10;
+    private final Integer LOW_RISK = 50;
 
     @Value("${utipdam.app.maxFileSize}")
     private long MAX_FILE_SIZE;
@@ -60,34 +64,32 @@ public class MobilityController {
     @Autowired
     private DatasetBusiness datasetBusiness;
 
-    @PostMapping("/mobility/upload")
-    public ResponseEntity<Map<String, Object>> upload(@RequestPart String k,
-                                                      @RequestPart MultipartFile file) {
+    @Autowired
+    UserRepository userRepository;
 
-        Map<String, Object> response = new HashMap<>();
+    @Autowired
+    RoleRepository roleRepository;
+
+    @Autowired
+    PasswordEncoder encoder;
+
+    @Autowired
+    AuthenticationManager authenticationManager;
+
+
+    @PostMapping("/mobility/upload")
+    public ResponseEntity<Resource> anonymizeOnly(@RequestPart MultipartFile file,
+                                                  @RequestPart String k) {
+
         String errorMessage;
+
         if (!isNumeric(k) || (Integer.parseInt(k) < 0 || Integer.parseInt(k) > 100)) {
             errorMessage = "k must be a number between 0 - 100. You provided " + k;
             logger.error(errorMessage);
-            response.put("error", errorMessage);
-            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, errorMessage);
         }
 
-        if (!Objects.requireNonNull(file.getOriginalFilename()).endsWith(".csv")) {
-            errorMessage = "Please upload a csv file. You provided " + file.getOriginalFilename();
-            logger.error(errorMessage);
-            response.put("error", errorMessage);
-            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-        }
-
-        if (file.getSize() > MAX_FILE_SIZE) {
-            errorMessage = "Exceeded max file size " + MAX_FILE_SIZE;
-            logger.error(errorMessage);
-            response.put("error", errorMessage);
-            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-        }
-
-        List<FileUploadResponse> listResponse = new ArrayList<>();
         DatasetDefinitionDTO dto = new DatasetDefinitionDTO();
         dto.setName("dash-upload-" + getRandomNumberString());
         dto.setDescription("Dataset uploaded from the web channel");
@@ -107,8 +109,8 @@ public class MobilityController {
         } catch (IOException e) {
             errorMessage = e.getMessage();
             logger.error(errorMessage);
-            response.put("error", errorMessage);
-            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+            throw new ResponseStatusException(
+                    HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
         }
 
 
@@ -134,10 +136,10 @@ public class MobilityController {
                     csvDate = line.split(",")[dateIndex];
                     csvDate = csvDate.split(" ")[0];
                     if (!GenericValidator.isDate(csvDate, DATE_FORMAT, true)) {
-                        errorMessage = "start_time must be yyyy-MM-dd HH:mm:ss format";
+                        errorMessage = "first_time_seen must be yyyy-MM-dd HH:mm:ss format";
                         logger.error(errorMessage);
-                        response.put("error", errorMessage);
-                        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+                        throw new ResponseStatusException(
+                                HttpStatus.BAD_REQUEST, errorMessage);
                     }
                 }
             }
@@ -145,8 +147,8 @@ public class MobilityController {
         } catch (IOException e) {
             errorMessage = e.getMessage();
             logger.error(errorMessage);
-            response.put("error", errorMessage);
-            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+            throw new ResponseStatusException(
+                    HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
         }
 
         if (csvDate != null) {
@@ -162,8 +164,8 @@ public class MobilityController {
             } catch (IOException e) {
                 errorMessage = e.getMessage();
                 logger.error(errorMessage);
-                response.put("error", errorMessage);
-                return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+                throw new ResponseStatusException(
+                        HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
             }
 
             File fi = new File(path + "/" + fileName);
@@ -173,39 +175,56 @@ public class MobilityController {
             Path filePath = Paths.get(uploadPath + "/" + fileName);
             try (Stream<String> stream = Files.lines(filePath)) {
                 dataPoints = stream.count() - 1;
-                Dataset dataset = new Dataset();
-                dataset.setId(uuid);
-                dataset.setDatasetDefinition(ds);
-                if (csvDate != null) {
-                    dataset.setStartDate(Date.valueOf(csvDate));
-                    dataset.setEndDate(Date.valueOf(csvDate));
+                Dataset d = new Dataset();
+                d.setId(uuid);
+                d.setDatasetDefinition(ds);
+                d.setStartDate(Date.valueOf(csvDate));
+                d.setEndDate(Date.valueOf(csvDate));
+                d.setResolution(RESOLUTION);
+                d.setK(Integer.parseInt(k));
+                d.setDataPoints(dataPoints);
+
+                datasetBusiness.save(d);
+
+                br = new BufferedReader(
+                        new InputStreamReader(new FileSystemResource("/data/mobility/" + ds.getId() + "/" + fileName).getInputStream()));
+
+                String lineDownload;
+                StringBuffer inputBuffer = new StringBuffer();
+                HttpHeaders responseHeaders = new HttpHeaders();
+
+                while ((lineDownload = br.readLine()) != null) {
+                    inputBuffer.append(lineDownload);
+                    inputBuffer.append('\n');
                 }
-                dataset.setResolution(RESOLUTION);
-                dataset.setK(Integer.parseInt(k));
-                dataset.setDataPoints(dataPoints);
+                br.close();
 
-                Dataset d = datasetBusiness.save(dataset);
+                String inputStr = inputBuffer.toString();
 
-                long size = Files.size(filePath);
-
-                FileUploadResponse fileUploadResponse = new FileUploadResponse();
-                fileUploadResponse.setDatasetDefinitionId(ds.getId());
-                fileUploadResponse.setDatasetId(d.getId());
-                fileUploadResponse.setFileName(fileName);
-                fileUploadResponse.setSize(size);
-                listResponse.add(fileUploadResponse);
-                response.put("data", listResponse);
-                return new ResponseEntity<>(response, HttpStatus.OK);
+                ContentDisposition contentDisposition = ContentDisposition.builder("inline")
+                        .filename(fi.getName())
+                        .build();
+                responseHeaders.setContentDisposition(contentDisposition);
+                InputStream is = new ByteArrayInputStream(inputStr.getBytes(StandardCharsets.UTF_8));
+                InputStreamResource resource = new InputStreamResource(is);
+                return ResponseEntity.ok()
+                        .headers(responseHeaders)
+                        .contentLength(is.available())
+                        .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                        .body(resource);
 
             } catch (IOException e) {
                 errorMessage = e.getMessage();
                 logger.error(errorMessage);
-                response.put("error", errorMessage);
-                return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+                throw new ResponseStatusException(
+                        HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
             }
         }
 
-        return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+        errorMessage = "An error occurred while processing your request";
+        logger.error(errorMessage);
+        throw new ResponseStatusException(
+                HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
 
     }
 
@@ -218,85 +237,204 @@ public class MobilityController {
         }
     }
 
-    @GetMapping("/mobility/download")
-    public ResponseEntity<Resource> download(@RequestParam UUID datasetId) {
-        HttpHeaders responseHeaders = new HttpHeaders();
-        Optional<Dataset> dataset = datasetBusiness.getById(datasetId);
-        if (dataset.isPresent()) {
-            Dataset datasetObj = dataset.get();
-            Optional<DatasetDefinition> df = datasetDefinitionBusiness.getById(datasetObj.getDatasetDefinition().getId());
+    @PostMapping("/mobility/anonymizationJob")
+    public ResponseEntity<Resource> anonymizeAndSave(@RequestPart MultipartFile file,
+                                                     @RequestPart String dataset) {
+        ObjectMapper mapper = new ObjectMapper();
+        String errorMessage;
+        DatasetDefinitionDTO dto;
+        try {
+            JsonNode rootNode = mapper.readTree(dataset);
+            dto = mapper.readValue(rootNode.toString(), DatasetDefinitionDTO.class);
+        }catch(JsonProcessingException e){
+            errorMessage = e.getMessage();
+            logger.error(errorMessage);
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, errorMessage);
+        }
 
-            if (df.isPresent()) {
-                DatasetDefinition definitionObj = df.get();
-                if (definitionObj.getInternal() == null || !definitionObj.getInternal()) {
-                    logger.info(definitionObj.getInternal().toString());
-                    String path = "/data/mobility/" + datasetObj.getDatasetDefinition().getId();
-                    File dir = new File(path);
-                    FileFilter fileFilter = new WildcardFileFilter("*dataset-" + datasetId + "-*");
-                    File[] files = dir.listFiles(fileFilter);
-                    if (files != null) {
-                        for (File fi : files) {
+        if ((dto.getK() < 0 || dto.getK() > 100)) {
+            errorMessage = "k must be a number between 0 - 100. You provided " + dto.getK();
+            logger.error(errorMessage);
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, errorMessage);
+        }
 
-                            try {
-                                BufferedReader file = new BufferedReader(
-                                        new InputStreamReader(new FileSystemResource(fi).getInputStream()));
-                                StringBuffer inputBuffer = new StringBuffer();
-                                String line;
+        if (!Objects.requireNonNull(file.getOriginalFilename()).endsWith(".csv")) {
+            errorMessage = "Please upload a csv file. You provided " + file.getOriginalFilename();
+            logger.error(errorMessage);
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, errorMessage);
+        }
 
-                                while ((line = file.readLine()) != null) {
-                                    inputBuffer.append(line);
-                                    inputBuffer.append('\n');
-                                }
-                                file.close();
-                                String inputStr = inputBuffer.toString();
+        if (file.getSize() > MAX_FILE_SIZE) {
+            errorMessage = "Exceeded max file size " + MAX_FILE_SIZE;
+            logger.error(errorMessage);
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, errorMessage);
+        }
 
-                                ContentDisposition contentDisposition = ContentDisposition.builder("inline")
-                                        .filename(fi.getName())
-                                        .build();
-                                responseHeaders.setContentDisposition(contentDisposition);
-                                InputStream stream = new ByteArrayInputStream(inputStr.getBytes(StandardCharsets.UTF_8));
-                                InputStreamResource resource = new InputStreamResource(stream);
-                                return ResponseEntity.ok()
-                                        .headers(responseHeaders)
-                                        .contentLength(stream.available())
-                                        .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                                        .body(resource);
-                            } catch (IOException e) {
-                                logger.error(e.getMessage());
-                                return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
-                            }
-                        }
-                    }
-                } else {
-                    logger.info("downloading from internal server");
-                    //download from internal archive server
-                    RestTemplateClient restTemplate = new RestTemplateClient();
-                    String domain = df.get().getServer().getDomain();
+        if (dto.getName() == null) {
+            errorMessage = "Name is required";
+            logger.error(errorMessage);
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, errorMessage);
+        }
 
-                    if (domain != null) {
-                        String uri = domain + "/internal/mobility/download";
-                        logger.info(uri);
-                        String url = UriComponentsBuilder
-                                .fromUriString(uri)
-                                .queryParam("datasetDefinitionId", definitionObj.getId())
-                                .queryParam("datasetId", datasetObj.getId())
-                                .build().toUriString();
-                        try {
-                            return restTemplate.restTemplate().exchange(url,
-                                    HttpMethod.GET, null, new ParameterizedTypeReference<>() {
-                                    });
+        if (dto.getCountryCode() == null) {
+            errorMessage = "Country is required";
+            logger.error(errorMessage);
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, errorMessage);
+        }
 
-                        } catch (Exception ex) {
-                            logger.error(ex.getMessage());
-                            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
-                        }
-                    }
+        if (dto.getOrganization() == null) {
+            errorMessage = "Dataset owner organization details are required";
+            logger.error(errorMessage);
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, errorMessage);
+        }
 
+        if (AuthTokenFilter.usernameLoggedIn == null) {
+            errorMessage = "Login is required";
+            logger.error(errorMessage);
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, errorMessage);
+        }else{
+            Optional<User> user = userRepository.findByUsername(AuthTokenFilter.usernameLoggedIn);
+            user.ifPresent(value -> dto.setUserId(value.getId()));
+        }
+
+        DatasetDefinition ds = datasetDefinitionBusiness.save(dto);
+
+        File fOrg;
+        String path = "/data/mobility/" + ds.getId();
+        try {
+            fOrg = new File(path);
+            fOrg.setReadable(true, false);
+            fOrg.setWritable(true, false);
+            fOrg.mkdirs();
+            Files.setPosixFilePermissions(Path.of("/data/mobility/" + ds.getId()), PosixFilePermissions.fromString("rwxrwxrwx"));
+        } catch (IOException e) {
+            errorMessage = e.getMessage();
+            logger.error(errorMessage);
+            throw new ResponseStatusException(
+                    HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
+        }
+
+
+        Path uploadPath = Paths.get(path);
+        String fileName;
+        BufferedReader br;
+        String csvDate = null;
+
+        try {
+            String line;
+            InputStream is = file.getInputStream();
+            br = new BufferedReader(new InputStreamReader(is));
+            line = br.readLine();
+            String[] nextRecord;
+            if (line != null) {
+                nextRecord = line.split(",");
+                int dateIndex = Arrays.asList(nextRecord).indexOf(START_TIME);
+                if (dateIndex < 0) {
+                    dateIndex = Arrays.asList(nextRecord).indexOf("start_time");
                 }
+
+                if (dateIndex > 0 && (line = br.readLine()) != null) {
+                    csvDate = line.split(",")[dateIndex];
+                    csvDate = csvDate.split(" ")[0];
+                    if (!GenericValidator.isDate(csvDate, DATE_FORMAT, true)) {
+                        errorMessage = "first_time_seen must be yyyy-MM-dd HH:mm:ss format";
+                        logger.error(errorMessage);
+                        throw new ResponseStatusException(
+                                HttpStatus.BAD_REQUEST, errorMessage);
+                    }
+                }
+            }
+
+        } catch (IOException e) {
+            errorMessage = e.getMessage();
+            logger.error(errorMessage);
+            throw new ResponseStatusException(
+                    HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
+        }
+
+        if (csvDate != null) {
+            UUID uuid = UUID.randomUUID();
+            fileName = "dataset-" + uuid + "-" + csvDate + ".csv";
+
+            //process anonymization
+
+
+            long dataPoints;
+            try {
+                FileUploadUtil.saveFile(fileName, file, uploadPath);
+            } catch (IOException e) {
+                errorMessage = e.getMessage();
+                logger.error(errorMessage);
+                throw new ResponseStatusException(
+                        HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
+            }
+
+            File fi = new File(path + "/" + fileName);
+            fi.setReadable(true, false);
+            fi.setWritable(true, false);
+
+            Path filePath = Paths.get(uploadPath + "/" + fileName);
+            try (Stream<String> stream = Files.lines(filePath)) {
+                dataPoints = stream.count() - 1;
+                Dataset d = new Dataset();
+                d.setId(uuid);
+                d.setDatasetDefinition(ds);
+                d.setStartDate(Date.valueOf(csvDate));
+                d.setEndDate(Date.valueOf(csvDate));
+                d.setResolution(dto.getResolution());
+                d.setK(dto.getK());
+                d.setDataPoints(dataPoints);
+
+                datasetBusiness.save(d);
+
+                br = new BufferedReader(
+                        new InputStreamReader(new FileSystemResource("/data/mobility/" + ds.getId() + "/" + fileName).getInputStream()));
+
+                String lineDownload;
+                StringBuffer inputBuffer = new StringBuffer();
+                HttpHeaders responseHeaders = new HttpHeaders();
+
+                while ((lineDownload = br.readLine()) != null) {
+                    inputBuffer.append(lineDownload);
+                    inputBuffer.append('\n');
+                }
+                br.close();
+
+                String inputStr = inputBuffer.toString();
+
+                ContentDisposition contentDisposition = ContentDisposition.builder("inline")
+                        .filename(fi.getName())
+                        .build();
+                responseHeaders.setContentDisposition(contentDisposition);
+                InputStream is = new ByteArrayInputStream(inputStr.getBytes(StandardCharsets.UTF_8));
+                InputStreamResource resource = new InputStreamResource(is);
+                return ResponseEntity.ok()
+                        .headers(responseHeaders)
+                        .contentLength(is.available())
+                        .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                        .body(resource);
+
+            } catch (IOException e) {
+                errorMessage = e.getMessage();
+                logger.error(errorMessage);
+                throw new ResponseStatusException(
+                        HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
             }
         }
 
-        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+        errorMessage = "An error occurred while processing your request";
+        logger.error(errorMessage);
+        throw new ResponseStatusException(
+                HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
+
     }
 
     @GetMapping("/mobility/visitorDetection")
@@ -362,7 +500,9 @@ public class MobilityController {
                                 }
                             }
 
+
                             response.put("count", i);
+                            response.put("riskLevel", getRiskLevel(i));
                             return new ResponseEntity<>(response, HttpStatus.OK);
                         }
 
@@ -393,12 +533,13 @@ public class MobilityController {
                                 ObjectMapper objectMapper = new ObjectMapper(jsonFactory);
                                 JsonNode jsonNode = objectMapper.readValue(node.toString(), JsonNode.class);
                                 if (jsonNode == null) {
-                                    errorMessage="An error occurred while processing your request";
+                                    errorMessage = "An error occurred while processing your request";
                                     logger.error(errorMessage);
                                     response.put("error", errorMessage);
                                     return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
-                                }else{
+                                } else {
                                     response.put("count", jsonNode.asInt());
+                                    response.put("riskLevel", getRiskLevel(jsonNode.asInt()));
                                     return new ResponseEntity<>(response, HttpStatus.OK);
                                 }
                             }
@@ -416,6 +557,21 @@ public class MobilityController {
         logger.error(errorMessage);
         response.put("error", errorMessage);
         return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+    }
+
+    private RiskLevelDTO getRiskLevel(int count) {
+        if (count < 1) {
+            return new RiskLevelDTO(RiskLevel.no_match);
+        }
+
+        if (count < HIGH_RISK) {
+            return new RiskLevelDTO(RiskLevel.high);
+        } else if (count < LOW_RISK) {
+            return new RiskLevelDTO(RiskLevel.low);
+        } else {
+            return new RiskLevelDTO(RiskLevel.no_risk);
+        }
+
     }
 
     private static VisitorTracks createVisitorTrack(String[] metadata) {
@@ -464,7 +620,7 @@ public class MobilityController {
     }
 
     //TODO for client use
-    @PostMapping("/mobility/anonymizationJob")
+    @PostMapping("/mobility/external/anonymizationJob")
     public ResponseEntity<Resource> anonymizeExternalAPI(@RequestPart DatasetDefinitionDTO dataset,
                                                          @RequestPart MultipartFile file) {
         String errorMessage;
@@ -497,7 +653,6 @@ public class MobilityController {
                     HttpStatus.BAD_REQUEST, errorMessage);
         }
 
-
         DatasetDefinition ds = datasetDefinitionBusiness.save(dataset);
 
         File fOrg;
@@ -529,11 +684,14 @@ public class MobilityController {
             if (line != null) {
                 nextRecord = line.split(",");
                 int dateIndex = Arrays.asList(nextRecord).indexOf(START_TIME);
+                if (dateIndex < 0) {
+                    dateIndex = Arrays.asList(nextRecord).indexOf("start_time");
+                }
                 if (dateIndex > 0 && (line = br.readLine()) != null) {
                     csvDate = line.split(",")[dateIndex];
                     csvDate = csvDate.split(" ")[0];
                     if (!GenericValidator.isDate(csvDate, DATE_FORMAT, true)) {
-                        errorMessage = "start_time must be yyyy-MM-dd HH:mm:ss format";
+                        errorMessage = "first_time_seen must be yyyy-MM-dd HH:mm:ss format";
                         logger.error(errorMessage);
                         throw new ResponseStatusException(
                                 HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
@@ -578,7 +736,7 @@ public class MobilityController {
                 d.setDatasetDefinition(ds);
                 d.setStartDate(Date.valueOf(csvDate));
                 d.setEndDate(Date.valueOf(csvDate));
-                d.setResolution(dataset.getResolution());
+                d.setResolution(RESOLUTION);
                 d.setK(dataset.getK());
                 d.setDataPoints(dataPoints);
 

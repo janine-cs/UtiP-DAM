@@ -47,6 +47,9 @@ public class DatasetDefinition implements Serializable {
     @JoinColumn(name = "server_id")
     private Server server;
 
+    @Column(name = "user_id")
+    private Long userId;
+
     public DatasetDefinition() {
     }
 
@@ -74,6 +77,12 @@ public class DatasetDefinition implements Serializable {
         }
         if (datasetDefinition.getInternal()!= null) {
             this.internal = datasetDefinition.getInternal();
+        }
+        if (datasetDefinition.getServer()!= null) {
+            this.server = datasetDefinition.getServer();
+        }
+        if (datasetDefinition.getUserId()!= null) {
+            this.userId = datasetDefinition.getUserId();
         }
         this.updatedOn = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(Calendar.getInstance().getTime());
     }

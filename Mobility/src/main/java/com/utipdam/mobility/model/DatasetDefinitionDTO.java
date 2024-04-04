@@ -10,10 +10,11 @@ public class DatasetDefinitionDTO {
     private String city;
     private Double fee;
     private Organization organization;
-    private Boolean publish;
-    private Boolean internal;
+    private boolean publish = false;
+    private boolean internal = false;
     private Integer k;
-    private String resolution;
+    private String resolution = "daily";
+    private Long userId;
 
     public DatasetDefinitionDTO() {
     }
