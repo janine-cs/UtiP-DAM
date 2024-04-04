@@ -90,49 +90,31 @@ public class MobilityController {
                     HttpStatus.BAD_REQUEST, errorMessage);
         }
 
-        DatasetDefinitionDTO dto = new DatasetDefinitionDTO();
-        dto.setName("dash-upload-" + getRandomNumberString());
-        dto.setDescription("Dataset uploaded from the web channel");
-        dto.setCountryCode("KR");
-        dto.setFee(0.0);
 
-        DatasetDefinition ds = datasetDefinitionBusiness.save(dto);
-
-        File fOrg;
-        String path = "/data/mobility/" + ds.getId();
-        try {
-            fOrg = new File(path);
-            fOrg.setReadable(true, false);
-            fOrg.setWritable(true, false);
-            fOrg.mkdirs();
-            Files.setPosixFilePermissions(Path.of("/data/mobility/" + ds.getId()), PosixFilePermissions.fromString("rwxrwxrwx"));
-        } catch (IOException e) {
-            errorMessage = e.getMessage();
-            logger.error(errorMessage);
-            throw new ResponseStatusException(
-                    HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
-        }
-
-
-        Path uploadPath = Paths.get(path);
-        String fileName;
-        BufferedReader br;
         String csvDate = null;
-
+        InputStream is;
+        StringBuffer inputBuffer = new StringBuffer();
         try {
             String line;
-            InputStream is = file.getInputStream();
-            br = new BufferedReader(new InputStreamReader(is));
-            line = br.readLine();
-            String[] nextRecord;
-            if (line != null) {
-                nextRecord = line.split(",");
-                int dateIndex = Arrays.asList(nextRecord).indexOf(START_TIME);
-                if (dateIndex < 0) {
-                    dateIndex = Arrays.asList(nextRecord).indexOf("start_time");
+            is = file.getInputStream();
+            BufferedReader br = new BufferedReader(new InputStreamReader(is));
+
+            long i = 0;
+            int dateIndex = -1;
+            while ((line = br.readLine()) != null) {
+                inputBuffer.append(line);
+                inputBuffer.append('\n');
+
+                if (i == 0) {
+                    String[] nextRecord = line.split(",");
+                    dateIndex = Arrays.asList(nextRecord).indexOf(START_TIME);
+                    if (dateIndex < 0) {
+                        dateIndex = Arrays.asList(nextRecord).indexOf("start_time");
+                    }
+
                 }
 
-                if (dateIndex > 0 && (line = br.readLine()) != null) {
+                if (dateIndex > 0 && i  == 1) {
                     csvDate = line.split(",")[dateIndex];
                     csvDate = csvDate.split(" ")[0];
                     if (!GenericValidator.isDate(csvDate, DATE_FORMAT, true)) {
@@ -142,6 +124,36 @@ public class MobilityController {
                                 HttpStatus.BAD_REQUEST, errorMessage);
                     }
                 }
+                i++;
+            }
+
+            logger.info("dataPoints:" + (i-1));
+            if (csvDate != null) {
+                HttpHeaders responseHeaders = new HttpHeaders();
+
+                String inputStr = inputBuffer.toString();
+
+
+                ContentDisposition contentDisposition = ContentDisposition.builder("inline")
+                        .filename(file.getName())
+                        .build();
+                responseHeaders.setContentDisposition(contentDisposition);
+                InputStream inputStream = new ByteArrayInputStream(inputStr.getBytes(StandardCharsets.UTF_8));
+                InputStreamResource resource = new InputStreamResource(inputStream);
+                br.close();
+
+                return ResponseEntity.ok()
+                        .headers(responseHeaders)
+                        .contentLength(inputStream.available())
+                        .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                        .body(resource);
+
+
+            }else{
+                errorMessage = "An error occurred while processing your request";
+                logger.error(errorMessage);
+                throw new ResponseStatusException(
+                        HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
             }
 
         } catch (IOException e) {
@@ -150,81 +162,6 @@ public class MobilityController {
             throw new ResponseStatusException(
                     HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
         }
-
-        if (csvDate != null) {
-            UUID uuid = UUID.randomUUID();
-            fileName = "dataset-" + uuid + "-" + csvDate + ".csv";
-
-            //process anonymization
-
-
-            long dataPoints;
-            try {
-                FileUploadUtil.saveFile(fileName, file, uploadPath);
-            } catch (IOException e) {
-                errorMessage = e.getMessage();
-                logger.error(errorMessage);
-                throw new ResponseStatusException(
-                        HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
-            }
-
-            File fi = new File(path + "/" + fileName);
-            fi.setReadable(true, false);
-            fi.setWritable(true, false);
-
-            Path filePath = Paths.get(uploadPath + "/" + fileName);
-            try (Stream<String> stream = Files.lines(filePath)) {
-                dataPoints = stream.count() - 1;
-                Dataset d = new Dataset();
-                d.setId(uuid);
-                d.setDatasetDefinition(ds);
-                d.setStartDate(Date.valueOf(csvDate));
-                d.setEndDate(Date.valueOf(csvDate));
-                d.setResolution(RESOLUTION);
-                d.setK(Integer.parseInt(k));
-                d.setDataPoints(dataPoints);
-
-                datasetBusiness.save(d);
-
-                br = new BufferedReader(
-                        new InputStreamReader(new FileSystemResource("/data/mobility/" + ds.getId() + "/" + fileName).getInputStream()));
-
-                String lineDownload;
-                StringBuffer inputBuffer = new StringBuffer();
-                HttpHeaders responseHeaders = new HttpHeaders();
-
-                while ((lineDownload = br.readLine()) != null) {
-                    inputBuffer.append(lineDownload);
-                    inputBuffer.append('\n');
-                }
-                br.close();
-
-                String inputStr = inputBuffer.toString();
-
-                ContentDisposition contentDisposition = ContentDisposition.builder("inline")
-                        .filename(fi.getName())
-                        .build();
-                responseHeaders.setContentDisposition(contentDisposition);
-                InputStream is = new ByteArrayInputStream(inputStr.getBytes(StandardCharsets.UTF_8));
-                InputStreamResource resource = new InputStreamResource(is);
-                return ResponseEntity.ok()
-                        .headers(responseHeaders)
-                        .contentLength(is.available())
-                        .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                        .body(resource);
-
-            } catch (IOException e) {
-                errorMessage = e.getMessage();
-                logger.error(errorMessage);
-                throw new ResponseStatusException(
-                        HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
-            }
-        }
-
-        errorMessage = "An error occurred while processing your request";
-        logger.error(errorMessage);
-        throw new ResponseStatusException(
-                HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
 
     }
 
@@ -246,7 +183,7 @@ public class MobilityController {
         try {
             JsonNode rootNode = mapper.readTree(dataset);
             dto = mapper.readValue(rootNode.toString(), DatasetDefinitionDTO.class);
-        }catch(JsonProcessingException e){
+        } catch (JsonProcessingException e) {
             errorMessage = e.getMessage();
             logger.error(errorMessage);
             throw new ResponseStatusException(
@@ -300,7 +237,7 @@ public class MobilityController {
             logger.error(errorMessage);
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST, errorMessage);
-        }else{
+        } else {
             Optional<User> user = userRepository.findByUsername(AuthTokenFilter.usernameLoggedIn);
             user.ifPresent(value -> dto.setUserId(value.getId()));
         }
