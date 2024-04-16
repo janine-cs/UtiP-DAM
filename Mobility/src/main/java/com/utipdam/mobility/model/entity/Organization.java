@@ -37,7 +37,7 @@ public class Organization implements Serializable {
             this.name = organization.getName();
         }
         if (organization.getEmail() != null) {
-            this.name = organization.getEmail();
+            this.email = organization.getEmail();
         }
     }
 

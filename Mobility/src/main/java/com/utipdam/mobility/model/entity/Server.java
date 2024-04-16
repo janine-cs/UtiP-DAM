@@ -23,4 +23,20 @@ public class Server implements Serializable {
     public Server() {
     }
 
+    public Server(Integer id, String name, String domain) {
+        this.id = id;
+        this.name = name;
+        this.domain = domain;
+    }
+
+
+    public void update(Server server) {
+        if (server.getName() != null) {
+            this.name = server.getName();
+        }
+        if (server.getDomain() != null) {
+            this.domain = server.getDomain();
+        }
+    }
+
 }
