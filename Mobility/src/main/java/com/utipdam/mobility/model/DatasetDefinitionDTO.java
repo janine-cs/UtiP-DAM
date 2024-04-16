@@ -1,5 +1,6 @@
 package com.utipdam.mobility.model;
 import com.utipdam.mobility.model.entity.Organization;
+import com.utipdam.mobility.model.entity.Server;
 import lombok.Data;
 
 @Data
@@ -15,6 +16,7 @@ public class DatasetDefinitionDTO {
     private Integer k;
     private String resolution = "daily";
     private Long userId;
+    private Server server;
 
     public DatasetDefinitionDTO() {
     }

@@ -43,7 +43,7 @@ public class DatasetDefinition implements Serializable {
     @JoinColumn(name = "organization_id")
     private Organization organization;
 
-    @ManyToOne(fetch = FetchType.EAGER)
+    @ManyToOne(fetch = FetchType.EAGER, cascade = CascadeType.PERSIST)
     @JoinColumn(name = "server_id")
     private Server server;
 

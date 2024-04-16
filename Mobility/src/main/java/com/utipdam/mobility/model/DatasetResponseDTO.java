@@ -19,6 +19,7 @@ public class DatasetResponseDTO {
     private Organization datasetOwner;
     private List<DatasetListDTO> datasets;
     private Long dataPoints;
+    private Long userId;
     private String updatedOn;
 
     public DatasetResponseDTO() {
@@ -27,7 +28,7 @@ public class DatasetResponseDTO {
     public DatasetResponseDTO(String name, String description,
                               String countryCode, String city, Double fee, Boolean publish,
                               Organization organization, UUID datasetDefinitionId,
-                              String updatedOn, Long dataPoints, List<DatasetListDTO> datasets) {
+                              String updatedOn, Long dataPoints, List<DatasetListDTO> datasets, Long userId) {
         this.datasetDefinitionId = datasetDefinitionId;
         this.name = name;
         this.description = description;
@@ -38,6 +39,7 @@ public class DatasetResponseDTO {
         this.datasetOwner = organization;
         this.datasets = datasets;
         this.dataPoints = dataPoints;
+        this.userId = userId;
         this.updatedOn = updatedOn;
     }
 }

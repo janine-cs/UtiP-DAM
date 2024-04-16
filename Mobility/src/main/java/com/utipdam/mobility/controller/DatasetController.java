@@ -50,7 +50,7 @@ public class DatasetController {
                             d.getUpdatedOn(), (long) dsList.stream().filter(o -> o != null && o.getDataPoints() != null)
                             .mapToLong(DatasetListDTO::getDataPoints)
                             .average()
-                            .orElse(0L), dsList);
+                            .orElse(0L), dsList, d.getUserId());
 
                 });
 
@@ -90,7 +90,7 @@ public class DatasetController {
                     d.getUpdatedOn(), (long) dsList.stream().filter(o -> o != null && o.getDataPoints() != null)
                     .mapToLong(DatasetListDTO::getDataPoints)
                     .average()
-                    .orElse(0L), dsList));
+                    .orElse(0L), dsList, d.getUserId()));
             return new ResponseEntity<>(response, HttpStatus.OK);
         } else {
             return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);

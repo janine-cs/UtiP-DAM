@@ -23,8 +23,7 @@ public class Server implements Serializable {
     public Server() {
     }
 
-    public Server(Integer id, String name, String domain) {
-        this.id = id;
+    public Server(String name, String domain) {
         this.name = name;
         this.domain = domain;
     }
