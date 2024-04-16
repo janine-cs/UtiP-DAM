@@ -13,7 +13,7 @@ import lombok.Data;
 
 @Entity
 @Data
-@Table(name = "users",
+@Table(name = "user",
         uniqueConstraints = {
                 @UniqueConstraint(columnNames = "username"),
                 @UniqueConstraint(columnNames = "email")
@@ -42,13 +42,23 @@ public class User {
             inverseJoinColumns = @JoinColumn(name = "role_id"))
     private Set<Role> roles = new HashSet<>();
 
+    @Column(name = "active")
+    private Boolean active;
+
+    @Column(name = "end_date")
+    private String endDate;
+
+
+
     public User() {
     }
 
-    public User(String username, String email, String password) {
+    public User(String username, String email, String password, Boolean active, String endDate) {
         this.username = username;
         this.email = email;
         this.password = password;
+        this.active = active;
+        this.endDate = endDate;
     }
 
     // getters and setters

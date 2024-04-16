@@ -2,8 +2,6 @@ package com.utipdam.internal.model;
 
 import lombok.Data;
 
-import java.text.SimpleDateFormat;
-import java.util.Calendar;
 import java.util.UUID;
 
 @Data
@@ -19,6 +17,7 @@ public class DatasetDefinition {
     private Boolean internal;
     private Organization organization;
     private Server server;
+    private Long userId;
 
     public DatasetDefinition() {
     }
