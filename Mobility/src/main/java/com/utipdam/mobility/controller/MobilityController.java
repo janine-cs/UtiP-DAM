@@ -431,9 +431,38 @@ public class MobilityController {
                                     .collect(Collectors.groupingBy(
                                             VisitorTracks::getVisitorId,
                                             Collectors.mapping(VisitorTracks::getRegionId, Collectors.toList())));
+                            Map<Long, List<Integer>> vIdMapFiltered = new HashMap<>();
+
+                            Iterator<Map.Entry<Long, List<Integer>>> iterator = vIdMap.entrySet().iterator();
+                            Map.Entry<Long, List<Integer>> prev = null;
+
+                            while (iterator.hasNext()) {
+                                Map.Entry<Long, List<Integer>> next = iterator.next();
+
+                                if (prev != null){
+                                    if (prev.getValue().size() > 1){
+                                        List<Integer> newList = new ArrayList<>();
+                                        for (int i = 0; i < prev.getValue().size(); i ++){
+                                            if ((i + 1) < prev.getValue().size()){
+                                                if (!Objects.equals(prev.getValue().get(i), prev.getValue().get(i + 1))){
+                                                    newList.add(prev.getValue().get(i));
+                                                }
+                                            }
+
+                                        }
+
+                                        vIdMapFiltered.put(prev.getKey(), newList);
+                                    }else{
+                                        vIdMapFiltered.put(prev.getKey(), prev.getValue());
+                                    }
+                                }
+
+                                prev = next;
+
+                            }
 
                             int i = 0;
-                            for (Map.Entry<Long, List<Integer>> entry : vIdMap.entrySet()) {
+                            for (Map.Entry<Long, List<Integer>> entry : vIdMapFiltered.entrySet()) {
                                 if (Collections.indexOfSubList(entry.getValue(), locIdList) > -1) {
                                     i++;
                                 }
@@ -585,12 +614,41 @@ public class MobilityController {
             }
             visitorTracks.sort(Comparator.comparing(VisitorTracks::getVisitorId)
                     .thenComparing(VisitorTracks::getFirstTimeSeen));
-            Map<Long, Set<Integer>> vIdMap = visitorTracks.stream().filter(p -> p.getRegionId() > 0)
+            Map<Long, List<Integer>> vIdMap = visitorTracks.stream().filter(p -> p.getRegionId() > 0)
                     .collect(Collectors.groupingBy(
                             VisitorTracks::getVisitorId,
-                            Collectors.mapping(VisitorTracks::getRegionId, Collectors.toSet())));
+                            Collectors.mapping(VisitorTracks::getRegionId, Collectors.toList())));
+            Map<Long, List<Integer>> vIdMapFiltered = new HashMap<>();
 
-            Map<IntegerList, Long> vMapResult = vIdMap.values().stream().collect(Collectors.groupingBy(IntegerList::new, Collectors.counting()));
+            Iterator<Map.Entry<Long, List<Integer>>> iterator = vIdMap.entrySet().iterator();
+            Map.Entry<Long, List<Integer>> prev = null;
+
+            while (iterator.hasNext()) {
+                Map.Entry<Long, List<Integer>> next = iterator.next();
+
+                if (prev != null){
+                    if (prev.getValue().size() > 1){
+                        List<Integer> newList = new ArrayList<>();
+                        for (int i = 0; i < prev.getValue().size(); i ++){
+                            if ((i + 1) < prev.getValue().size()){
+                                if (!Objects.equals(prev.getValue().get(i), prev.getValue().get(i + 1))){
+                                    newList.add(prev.getValue().get(i));
+                                }
+                            }
+
+                        }
+
+                        vIdMapFiltered.put(prev.getKey(), newList);
+                    }else{
+                        vIdMapFiltered.put(prev.getKey(), prev.getValue());
+                    }
+                }
+
+                prev = next;
+
+            }
+
+            Map<IntegerList, Long> vMapResult = vIdMapFiltered.values().stream().collect(Collectors.groupingBy(IntegerList::new, Collectors.counting()));
             vMapResult = vMapResult.entrySet().stream().filter(v -> v.getValue() <= Integer.parseInt(k)).collect(Collectors.toMap(e->e.getKey(),e->e.getValue()));
 
             response.put("data", vMapResult);
