@@ -87,6 +87,25 @@ public class MobilityController {
 
         String errorMessage;
 
+        if (file.isEmpty()){
+            errorMessage = "File is required";
+            logger.error(errorMessage);
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, errorMessage);
+        }
+        if (!Objects.requireNonNull(file.getOriginalFilename()).endsWith(".csv")) {
+            errorMessage = "Please upload a csv file. You provided " + file.getOriginalFilename();
+            logger.error(errorMessage);
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, errorMessage);
+        }
+
+        if (file.getSize() > MAX_FILE_SIZE) {
+            errorMessage = "Exceeded max file size " + MAX_FILE_SIZE;
+            logger.error(errorMessage);
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, errorMessage);
+        }
         if (!isNumeric(k) || (Integer.parseInt(k) < 0 || Integer.parseInt(k) > 100)) {
             errorMessage = "k must be a number between 0 - 100. You provided " + k;
             logger.error(errorMessage);
@@ -275,13 +294,12 @@ public class MobilityController {
                     HttpStatus.BAD_REQUEST, errorMessage);
         }
 
-        if ((dto.getK() < 0 || dto.getK() > 100)) {
-            errorMessage = "k must be a number between 0 - 100. You provided " + dto.getK();
+        if (file.isEmpty()){
+            errorMessage = "File is required";
             logger.error(errorMessage);
             throw new ResponseStatusException(
                     HttpStatus.BAD_REQUEST, errorMessage);
         }
-
         if (!Objects.requireNonNull(file.getOriginalFilename()).endsWith(".csv")) {
             errorMessage = "Please upload a csv file. You provided " + file.getOriginalFilename();
             logger.error(errorMessage);
@@ -296,6 +314,12 @@ public class MobilityController {
                     HttpStatus.BAD_REQUEST, errorMessage);
         }
 
+        if ((dto.getK() < 0 || dto.getK() > 100)) {
+            errorMessage = "k must be a number between 0 - 100. You provided " + dto.getK();
+            logger.error(errorMessage);
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, errorMessage);
+        }
         if (dto.getName() == null) {
             errorMessage = "Name is required";
             logger.error(errorMessage);
@@ -703,6 +727,34 @@ public class MobilityController {
                                                      @RequestPart String k) {
         Map<String, Object> response = new HashMap<>();
         String errorMessage;
+
+        if (file.isEmpty()){
+            errorMessage = "File is required";
+            logger.error(errorMessage);
+            response.put("error", errorMessage);
+            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+        }
+        if (!Objects.requireNonNull(file.getOriginalFilename()).endsWith(".csv")) {
+            errorMessage = "Please upload a csv file. You provided " + file.getOriginalFilename();
+            logger.error(errorMessage);
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, errorMessage);
+        }
+
+//        if (file.getSize() > MAX_FILE_SIZE) {
+//            errorMessage = "Exceeded max file size " + MAX_FILE_SIZE;
+//            logger.error(errorMessage);
+//            throw new ResponseStatusException(
+//                    HttpStatus.BAD_REQUEST, errorMessage);
+//        }
+
+        if (!isNumeric(k) || Integer.parseInt(k) < 2) {
+            errorMessage = "k must be a number between 2 - dataset size. You provided " + k;
+            logger.error(errorMessage);
+            response.put("error", errorMessage);
+            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+        }
+
         try {
             Reader reader = new InputStreamReader(file.getInputStream());
             List<VisitorTracks> visitorTracks = new ArrayList<>();
@@ -720,7 +772,7 @@ public class MobilityController {
                 errorMessage = e.getMessage();
                 logger.error(errorMessage);
                 response.put("error", errorMessage);
-                return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
             }
             visitorTracks.sort(Comparator.comparing(VisitorTracks::getVisitorId)
                     .thenComparing(VisitorTracks::getFirstTimeSeen));
@@ -796,6 +848,10 @@ public class MobilityController {
 
     @GetMapping("/deviceToVisitorId")
     public String deviceToVisitorId(@RequestParam Integer sensorId, @RequestParam String mac) {
-        return sensorId + "_" + Hashing.sha256().hashString(mac, StandardCharsets.UTF_8);
+        return sensorId + "_" + Hashing.sha256().hashString(formatToValidMac(mac), StandardCharsets.UTF_8);
+    }
+
+    private static String formatToValidMac(String mac) {
+        return mac.replaceAll("[^a-zA-Z0-9]", "").toUpperCase();
     }
 }
