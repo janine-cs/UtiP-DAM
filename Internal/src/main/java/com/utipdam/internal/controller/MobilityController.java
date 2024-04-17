@@ -298,6 +298,59 @@ public class MobilityController {
                             VisitorTracks::getVisitorId,
                             Collectors.mapping(VisitorTracks::getRegionId, Collectors.toList())));
 
+            Map<Long, List<Integer>> vIdMapFiltered = new HashMap<>();
+
+            Iterator<Map.Entry<Long, List<Integer>>> iterator = vIdMap.entrySet().iterator();
+            Map.Entry<Long, List<Integer>> prev = null;
+
+            while (iterator.hasNext()) {
+                Map.Entry<Long, List<Integer>> next = iterator.next();
+
+                if (prev != null){
+                    if (prev.getValue().size() > 1){
+                        List<Integer> newList = new ArrayList<>();
+                        for (int i = 0; i < prev.getValue().size(); i ++){
+                            if ((i + 1) < prev.getValue().size()){
+                                if (!Objects.equals(prev.getValue().get(i), prev.getValue().get(i + 1))){
+                                    newList.add(prev.getValue().get(i));
+                                }
+                            }else{
+                                newList.add(prev.getValue().get(i));
+                            }
+
+                        }
+
+                        vIdMapFiltered.put(prev.getKey(), newList);
+                    }else{
+                        vIdMapFiltered.put(prev.getKey(), prev.getValue());
+                    }
+                }
+
+                prev = next;
+
+            }
+
+            //last entry
+            if (prev != null){
+                if (prev.getValue().size() > 1){
+                    List<Integer> newList = new ArrayList<>();
+                    for (int i = 0; i < prev.getValue().size(); i ++){
+                        if ((i + 1) < prev.getValue().size()){
+                            if (!Objects.equals(prev.getValue().get(i), prev.getValue().get(i + 1))){
+                                newList.add(prev.getValue().get(i));
+                            }
+                        }else{
+                            newList.add(prev.getValue().get(i));
+                        }
+
+                    }
+
+                    vIdMapFiltered.put(prev.getKey(), newList);
+                }else{
+                    vIdMapFiltered.put(prev.getKey(), prev.getValue());
+                }
+            }
+
             int i = 0;
             for (Map.Entry<Long, List<Integer>> entry : vIdMap.entrySet()) {
                 if (Collections.indexOfSubList(entry.getValue(), locIdList) > -1) {

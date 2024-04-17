@@ -20,11 +20,13 @@ import com.utipdam.mobility.model.entity.*;
 import com.utipdam.mobility.model.repository.RoleRepository;
 import com.utipdam.mobility.model.repository.UserRepository;
 import org.antlr.v4.runtime.misc.IntegerList;
+import org.apache.commons.io.filefilter.WildcardFileFilter;
 import org.apache.commons.validator.GenericValidator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
@@ -165,6 +167,87 @@ public class MobilityController {
                     HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
         }
 
+    }
+
+    @GetMapping("/mobility/download")
+    public ResponseEntity<Resource> download(@RequestParam UUID datasetId) {
+        HttpHeaders responseHeaders = new HttpHeaders();
+        Optional<Dataset> dataset = datasetBusiness.getById(datasetId);
+        if (dataset.isPresent()) {
+            Dataset datasetObj = dataset.get();
+            Optional<DatasetDefinition> df = datasetDefinitionBusiness.getById(datasetObj.getDatasetDefinition().getId());
+
+            if (df.isPresent()) {
+                DatasetDefinition definitionObj = df.get();
+                if (definitionObj.getInternal() == null || !definitionObj.getInternal()) {
+                    logger.info(definitionObj.getInternal().toString());
+                    String path = "/data/mobility/" + datasetObj.getDatasetDefinition().getId();
+                    File dir = new File(path);
+                    FileFilter fileFilter = new WildcardFileFilter("*dataset-" + datasetId + "-*");
+                    File[] files = dir.listFiles(fileFilter);
+                    if (files != null) {
+                        for (File fi : files) {
+
+                            try {
+                                BufferedReader file = new BufferedReader(
+                                        new InputStreamReader(new FileSystemResource(fi).getInputStream()));
+                                StringBuffer inputBuffer = new StringBuffer();
+                                String line;
+
+                                while ((line = file.readLine()) != null) {
+                                    inputBuffer.append(line);
+                                    inputBuffer.append('\n');
+                                }
+                                file.close();
+                                String inputStr = inputBuffer.toString();
+
+                                ContentDisposition contentDisposition = ContentDisposition.builder("inline")
+                                        .filename(fi.getName())
+                                        .build();
+                                responseHeaders.setContentDisposition(contentDisposition);
+                                InputStream stream = new ByteArrayInputStream(inputStr.getBytes(StandardCharsets.UTF_8));
+                                InputStreamResource resource = new InputStreamResource(stream);
+                                return ResponseEntity.ok()
+                                        .headers(responseHeaders)
+                                        .contentLength(stream.available())
+                                        .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                                        .body(resource);
+                            } catch (IOException e) {
+                                logger.error(e.getMessage());
+                                return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+                            }
+                        }
+                    }
+                } else {
+                    logger.info("downloading from internal server");
+                    //download from internal archive server
+                    RestTemplateClient restTemplate = new RestTemplateClient();
+                    String domain = df.get().getServer().getDomain();
+
+                    if (domain != null) {
+                        String uri = domain + "/internal/mobility/download";
+                        logger.info(uri);
+                        String url = UriComponentsBuilder
+                                .fromUriString(uri)
+                                .queryParam("datasetDefinitionId", definitionObj.getId())
+                                .queryParam("datasetId", datasetObj.getId())
+                                .build().toUriString();
+                        try {
+                            return restTemplate.restTemplate().exchange(url,
+                                    HttpMethod.GET, null, new ParameterizedTypeReference<>() {
+                                    });
+
+                        } catch (Exception ex) {
+                            logger.error(ex.getMessage());
+                            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+                        }
+                    }
+
+                }
+            }
+        }
+
+        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
     }
 
     public static boolean isNumeric(String str) {
@@ -381,12 +464,12 @@ public class MobilityController {
                                                           @RequestParam UUID datasetId) {
         Map<String, Object> response = new HashMap<>();
         String errorMessage;
-//        if (locationIds.length < 2) {
-//            errorMessage = "Please select 2 or more locations";
-//            logger.error(errorMessage);
-//            response.put("error", errorMessage);
-//            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-//        }
+        if (locationIds.length < 1) {
+            errorMessage = "Please provide at least one location point - locationIds";
+            logger.error(errorMessage);
+            response.put("error", errorMessage);
+            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+        }
 
         if (Arrays.stream(locationIds).anyMatch(item -> item == 0)) {
             errorMessage = "location id 0 is invalid";
@@ -447,6 +530,8 @@ public class MobilityController {
                                                 if (!Objects.equals(prev.getValue().get(i), prev.getValue().get(i + 1))){
                                                     newList.add(prev.getValue().get(i));
                                                 }
+                                            }else{
+                                                newList.add(prev.getValue().get(i));
                                             }
 
                                         }
@@ -461,7 +546,32 @@ public class MobilityController {
 
                             }
 
+                            //last entry
+                            if (prev != null){
+                                if (prev.getValue().size() > 1){
+                                    List<Integer> newList = new ArrayList<>();
+                                    for (int i = 0; i < prev.getValue().size(); i ++){
+                                        if ((i + 1) < prev.getValue().size()){
+                                            if (!Objects.equals(prev.getValue().get(i), prev.getValue().get(i + 1))){
+                                                newList.add(prev.getValue().get(i));
+                                            }
+                                        }else{
+                                            newList.add(prev.getValue().get(i));
+                                        }
+
+                                    }
+
+                                    vIdMapFiltered.put(prev.getKey(), newList);
+                                }else{
+                                    vIdMapFiltered.put(prev.getKey(), prev.getValue());
+                                }
+                            }
+
+
+
                             int i = 0;
+
+
                             for (Map.Entry<Long, List<Integer>> entry : vIdMapFiltered.entrySet()) {
                                 if (Collections.indexOfSubList(entry.getValue(), locIdList) > -1) {
                                     i++;
@@ -634,6 +744,8 @@ public class MobilityController {
                                 if (!Objects.equals(prev.getValue().get(i), prev.getValue().get(i + 1))){
                                     newList.add(prev.getValue().get(i));
                                 }
+                            }else{
+                                newList.add(prev.getValue().get(i));
                             }
 
                         }
@@ -648,7 +760,28 @@ public class MobilityController {
 
             }
 
-            Map<IntegerList, Long> vMapResult = vIdMapFiltered.values().stream().collect(Collectors.groupingBy(IntegerList::new, Collectors.counting()));
+            //last entry
+            if (prev != null){
+                if (prev.getValue().size() > 1){
+                    List<Integer> newList = new ArrayList<>();
+                    for (int i = 0; i < prev.getValue().size(); i ++){
+                        if ((i + 1) < prev.getValue().size()){
+                            if (!Objects.equals(prev.getValue().get(i), prev.getValue().get(i + 1))){
+                                newList.add(prev.getValue().get(i));
+                            }
+                        }else{
+                            newList.add(prev.getValue().get(i));
+                        }
+
+                    }
+
+                    vIdMapFiltered.put(prev.getKey(), newList);
+                }else{
+                    vIdMapFiltered.put(prev.getKey(), prev.getValue());
+                }
+            }
+
+            Map<IntegerList, Long> vMapResult = vIdMapFiltered.values().stream().filter(v-> !v.isEmpty()).collect(Collectors.groupingBy(IntegerList::new, Collectors.counting()));
             vMapResult = vMapResult.entrySet().stream().filter(v -> v.getValue() <= Integer.parseInt(k)).collect(Collectors.toMap(e->e.getKey(),e->e.getValue()));
 
             response.put("data", vMapResult);
@@ -663,8 +796,6 @@ public class MobilityController {
 
     @GetMapping("/deviceToVisitorId")
     public String deviceToVisitorId(@RequestParam Integer sensorId, @RequestParam String mac) {
-        return sensorId + "_" + Hashing.sha256()
-                    .hashString(mac, StandardCharsets.UTF_8);
-
+        return sensorId + "_" + Hashing.sha256().hashString(mac, StandardCharsets.UTF_8);
     }
 }
