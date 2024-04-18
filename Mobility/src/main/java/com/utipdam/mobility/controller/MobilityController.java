@@ -26,7 +26,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.couchbase.CouchbaseProperties;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.InputStreamResource;
@@ -208,7 +207,6 @@ public class MobilityController {
 
             if (df.isPresent()) {
                 DatasetDefinition definitionObj = df.get();
-                if (definitionObj.getInternal() == null || !definitionObj.getInternal()) {
                     logger.info(definitionObj.getInternal().toString());
                     String path = "/data/mobility/" + datasetObj.getDatasetDefinition().getId();
                     File dir = new File(path);
@@ -236,20 +234,47 @@ public class MobilityController {
                             .header(HttpHeaders.CONTENT_DISPOSITION, "attachment;filename=datasets.zip")
                             .contentType(MediaType.parseMediaType("application/zip")).body(streamResponse);
 
+            }
+        }
 
-                } else {
+        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+    }
+
+    @GetMapping("/mobility/internal/download")
+    public ResponseEntity<Resource> downloadInternal(@RequestParam UUID[] datasetIds) {
+        String errorMessage;
+
+        if (datasetIds.length < 1) {
+            errorMessage = "Please select at least one dataset - datasetIds";
+            logger.error(errorMessage);
+            return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+        }
+
+        Optional<Dataset> dataset = datasetBusiness.getById(datasetIds[0]);
+        if (dataset.isPresent()) {
+            Dataset datasetObj = dataset.get();
+            Optional<DatasetDefinition> df = datasetDefinitionBusiness.getById(datasetObj.getDatasetDefinition().getId());
+
+            if (df.isPresent()) {
+                DatasetDefinition definitionObj = df.get();
                     logger.info("downloading from internal server");
                     //download from internal archive server
                     RestTemplateClient restTemplate = new RestTemplateClient();
-                    String domain = df.get().getServer().getDomain();
+                    if ( definitionObj.getServer() == null){
+                        errorMessage = "No server specified";
+                        logger.error(errorMessage);
+                        return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+                    }
+                    String domain = definitionObj.getServer().getDomain();
 
                     if (domain != null) {
                         String uri = domain + "/internal/mobility/download";
                         logger.info(uri);
+                        String strList = Arrays.toString(datasetIds);
                         String url = UriComponentsBuilder
                                 .fromUriString(uri)
-                                .queryParam("datasetDefinitionId", definitionObj.getId())
-                                .queryParam("datasetIds", Arrays.toString(datasetIds))
+                                .queryParam("datasetDefinitionId", definitionObj.getId().toString())
+                                .queryParam("datasetIds", strList.substring(1, strList.length() - 1))
                                 .build().toUriString();
                         try {
                             return restTemplate.restTemplate().exchange(url,
@@ -264,8 +289,43 @@ public class MobilityController {
 
                 }
             }
-        }
 
+
+
+////        Optional<Dataset> dataset = datasetBusiness.getById(datasetIds[0]);
+////        if (dataset.isPresent()) {
+////            Dataset datasetObj = dataset.get();
+////            Optional<DatasetDefinition> df = datasetDefinitionBusiness.getById(datasetObj.getDatasetDefinition().getId());
+////
+////            if (df.isPresent()) {
+//        //DatasetDefinition definitionObj = df.get();
+//        logger.info("downloading from internal server");
+//        //download from internal archive server
+//        RestTemplateClient restTemplate = new RestTemplateClient();
+//        String domain = "https://lucky.lbasense.com:38443/";//df.get().getServer().getDomain();
+//
+//        if (domain != null) {
+//            String uri = domain + "/internal/mobility/download";
+//            logger.info(uri);
+//            String strList = Arrays.toString(datasetIds);
+//            String url = UriComponentsBuilder
+//                    .fromUriString(uri)
+//                    .queryParam("datasetDefinitionId", "bdb13df5-b005-4012-a36b-f08ff893a13f")
+//                    .queryParam("datasetIds", strList.substring(1, strList.length() - 1))
+//                    .build().toUriString();
+//            try {
+//                return restTemplate.restTemplate().exchange(url,
+//                        HttpMethod.GET, null, new ParameterizedTypeReference<>() {
+//                        });
+//
+//            } catch (Exception ex) {
+//                logger.error(ex.getMessage());
+//                return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+//            }
+//        }
+//
+//        //    }
+//        //     }
 
         return new ResponseEntity<>(HttpStatus.NO_CONTENT);
     }

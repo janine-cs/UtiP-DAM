@@ -1,5 +1,4 @@
 package com.utipdam.mobility.model;
-import com.utipdam.mobility.model.entity.Dataset;
 import com.utipdam.mobility.model.entity.Organization;
 import lombok.Data;
 
@@ -16,6 +15,7 @@ public class DatasetResponseDTO {
     private String description;
     private Double fee;
     private Boolean publish;
+    private Boolean internal;
     private Organization datasetOwner;
     private List<DatasetListDTO> datasets;
     private Long dataPoints;
@@ -28,7 +28,7 @@ public class DatasetResponseDTO {
     public DatasetResponseDTO(String name, String description,
                               String countryCode, String city, Double fee, Boolean publish,
                               Organization organization, UUID datasetDefinitionId,
-                              String updatedOn, Long dataPoints, List<DatasetListDTO> datasets, Long userId) {
+                              String updatedOn, Long dataPoints, List<DatasetListDTO> datasets, Long userId, Boolean internal) {
         this.datasetDefinitionId = datasetDefinitionId;
         this.name = name;
         this.description = description;
@@ -36,6 +36,7 @@ public class DatasetResponseDTO {
         this.city = city;
         this.fee = fee;
         this.publish = publish;
+        this.internal = internal;
         this.datasetOwner = organization;
         this.datasets = datasets;
         this.dataPoints = dataPoints;
