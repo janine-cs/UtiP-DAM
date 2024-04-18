@@ -190,7 +190,7 @@ public class MobilityController {
     }
 
     @GetMapping("/mobility/download")
-    public ResponseEntity<StreamingResponseBody> download(@RequestParam UUID[] datasetIds) {
+    public ResponseEntity<byte[]> download(@RequestParam UUID[] datasetIds) throws IOException {
         String errorMessage;
 
         if (datasetIds.length < 1) {
@@ -202,10 +202,12 @@ public class MobilityController {
         Optional<Dataset> dataset = datasetBusiness.getById(datasetIds[0]);
         if (dataset.isPresent()) {
             Dataset datasetObj = dataset.get();
+
             Optional<DatasetDefinition> df = datasetDefinitionBusiness.getById(datasetObj.getDatasetDefinition().getId());
 
             if (df.isPresent()) {
                 DatasetDefinition definitionObj = df.get();
+                if (definitionObj.getInternal() == null || !definitionObj.getInternal()) {
                     logger.info(definitionObj.getInternal().toString());
                     String path = "/data/mobility/" + datasetObj.getDatasetDefinition().getId();
                     File dir = new File(path);
@@ -227,44 +229,18 @@ public class MobilityController {
                         }
 
                     };
-
+                    ByteArrayOutputStream os =  new ByteArrayOutputStream(1024);
+                    streamResponse.writeTo(os);
                     return ResponseEntity.ok()
                             .header(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, HttpHeaders.CONTENT_DISPOSITION)
                             .header(HttpHeaders.CONTENT_DISPOSITION, "attachment;filename=datasets.zip")
-                            .contentType(MediaType.parseMediaType("application/zip")).body(streamResponse);
+                            .contentType(MediaType.parseMediaType("application/zip")).body(os.toByteArray());
 
-            }
-        }
-
-        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
-    }
-
-    @GetMapping("/mobility/internal/download")
-    public ResponseEntity<byte[]> downloadInternal(@RequestParam UUID[] datasetIds) {
-        String errorMessage;
-
-        if (datasetIds.length < 1) {
-            errorMessage = "Please select at least one dataset - datasetIds";
-            logger.error(errorMessage);
-            return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
-        }
-
-        Optional<Dataset> dataset = datasetBusiness.getById(datasetIds[0]);
-        if (dataset.isPresent()) {
-            Dataset datasetObj = dataset.get();
-            Optional<DatasetDefinition> df = datasetDefinitionBusiness.getById(datasetObj.getDatasetDefinition().getId());
-
-            if (df.isPresent()) {
-                DatasetDefinition definitionObj = df.get();
+                } else {
                     logger.info("downloading from internal server");
                     //download from internal archive server
                     RestTemplateClient restTemplate = new RestTemplateClient();
-                    if ( definitionObj.getServer() == null){
-                        errorMessage = "No server specified";
-                        logger.error(errorMessage);
-                        return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
-                    }
-                    String domain = definitionObj.getServer().getDomain();
+                    String domain = df.get().getServer().getDomain();
 
                     if (domain != null) {
                         String uri = domain + "/internal/mobility/download";
@@ -292,46 +268,12 @@ public class MobilityController {
 
                 }
             }
+        }
 
-
-
-////        Optional<Dataset> dataset = datasetBusiness.getById(datasetIds[0]);
-////        if (dataset.isPresent()) {
-////            Dataset datasetObj = dataset.get();
-////            Optional<DatasetDefinition> df = datasetDefinitionBusiness.getById(datasetObj.getDatasetDefinition().getId());
-////
-////            if (df.isPresent()) {
-//        //DatasetDefinition definitionObj = df.get();
-//        logger.info("downloading from internal server");
-//        //download from internal archive server
-//        RestTemplateClient restTemplate = new RestTemplateClient();
-//        String domain = "https://lucky.lbasense.com:38443/";//df.get().getServer().getDomain();
-//
-//        if (domain != null) {
-//            String uri = domain + "/internal/mobility/download";
-//            logger.info(uri);
-//            String strList = Arrays.toString(datasetIds);
-//            String url = UriComponentsBuilder
-//                    .fromUriString(uri)
-//                    .queryParam("datasetDefinitionId", "bdb13df5-b005-4012-a36b-f08ff893a13f")
-//                    .queryParam("datasetIds", strList.substring(1, strList.length() - 1))
-//                    .build().toUriString();
-//            try {
-//                return restTemplate.restTemplate().exchange(url,
-//                        HttpMethod.GET, null, new ParameterizedTypeReference<>() {
-//                        });
-//
-//            } catch (Exception ex) {
-//                logger.error(ex.getMessage());
-//                return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
-//            }
-//        }
-//
-//        //    }
-//        //     }
 
         return new ResponseEntity<>(HttpStatus.NO_CONTENT);
     }
+
 
     private void addToZipFile(ZipOutputStream zos, InputStream fis, String filename) throws IOException {
         ZipEntry zipEntry = new ZipEntry(filename);
