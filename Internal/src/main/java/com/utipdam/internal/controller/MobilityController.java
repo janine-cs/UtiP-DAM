@@ -22,8 +22,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
-import org.springframework.core.io.InputStreamResource;
-import org.springframework.core.io.Resource;
 import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.HttpClientErrorException;
@@ -32,7 +30,6 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import java.io.*;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -224,40 +221,50 @@ public class MobilityController {
     }
 
     @GetMapping("/mobility/download")
-    public ResponseEntity<StreamingResponseBody> downloadInternal(@RequestParam UUID datasetDefinitionId,
-                                                     @RequestParam String datasetIds) {
-        String errorMessage;
-        String[] datasetArr = datasetIds.replace("[", "").replace("]", "").split(",");
+    public ResponseEntity<StreamingResponseBody> downloadInternal(@RequestParam String datasetDefinitionId,
+                                                                  @RequestParam String datasetIds) {
+
+        String[] datasetArr = datasetIds.split(",");
         if (datasetArr.length < 1) {
-            errorMessage = "Please select at least one dataset - datasetIds";
-            logger.error(errorMessage);
+            logger.error("Please select at least one dataset - datasetIds");
             return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
         }
         String path = "/data/mobility/" + datasetDefinitionId;
         File dir = new File(path);
-        StreamingResponseBody streamResponse = clientOut -> {
-            try (ZipOutputStream zos = new ZipOutputStream(clientOut)) {
-                for (String datasetId : datasetArr) {
-                    FileFilter fileFilter = new WildcardFileFilter("*dataset-" + datasetId + "-*");
-                    File[] files = dir.listFiles(fileFilter);
+        if (dir.exists()) {
+            StreamingResponseBody streamResponse = clientOut -> {
+                try (ZipOutputStream zos = new ZipOutputStream(clientOut)) {
+                    for (String datasetId : datasetArr) {
+                        FileFilter fileFilter = new WildcardFileFilter("*dataset-" + datasetId + "-*");
+                        File[] files = dir.listFiles(fileFilter);
 
-                    if (files != null && files.length > 0) {
-                        File fi = files[0];
-                        addToZipFile(zos, new FileSystemResource(fi).getInputStream(), fi.getName());
 
+                        if (files != null) {
+
+                            if (files != null && files.length > 0) {
+                                File fi = files[0];
+                                addToZipFile(zos, new FileSystemResource(fi).getInputStream(), fi.getName());
+
+                            }
+
+                        }
                     }
+                } finally {
+                    clientOut.close();
                 }
-            } finally {
-                clientOut.close();
-            }
 
-        };
+            };
 
-        return ResponseEntity.ok()
-                .header(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, HttpHeaders.CONTENT_DISPOSITION)
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment;filename=datasets.zip")
-                .contentType(MediaType.parseMediaType("application/zip")).body(streamResponse);
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, HttpHeaders.CONTENT_DISPOSITION)
+                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment;filename=datasets.zip")
+                    .contentType(MediaType.parseMediaType("application/zip")).body(streamResponse);
 
+
+        } else {
+            logger.error("dataset definition path not found");
+            return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+        }
 
     }
 
@@ -275,8 +282,8 @@ public class MobilityController {
 
     @GetMapping("/mobility/visitorDetection")
     public Integer findMeHere(@RequestParam String datasetDefinitionId,
-                                                          @RequestParam String datasetId,
-                                                          @RequestParam String locationIds) {
+                              @RequestParam String datasetId,
+                              @RequestParam String locationIds) {
         String errorMessage;
         List<VisitorTracks> visitorTracks = new ArrayList<>();
         RFC4180Parser rfc4180Parser = new RFC4180ParserBuilder().build();
@@ -318,22 +325,22 @@ public class MobilityController {
             while (iterator.hasNext()) {
                 Map.Entry<Long, List<Integer>> next = iterator.next();
 
-                if (prev != null){
-                    if (prev.getValue().size() > 1){
+                if (prev != null) {
+                    if (prev.getValue().size() > 1) {
                         List<Integer> newList = new ArrayList<>();
-                        for (int i = 0; i < prev.getValue().size(); i ++){
-                            if ((i + 1) < prev.getValue().size()){
-                                if (!Objects.equals(prev.getValue().get(i), prev.getValue().get(i + 1))){
+                        for (int i = 0; i < prev.getValue().size(); i++) {
+                            if ((i + 1) < prev.getValue().size()) {
+                                if (!Objects.equals(prev.getValue().get(i), prev.getValue().get(i + 1))) {
                                     newList.add(prev.getValue().get(i));
                                 }
-                            }else{
+                            } else {
                                 newList.add(prev.getValue().get(i));
                             }
 
                         }
 
                         vIdMapFiltered.put(prev.getKey(), newList);
-                    }else{
+                    } else {
                         vIdMapFiltered.put(prev.getKey(), prev.getValue());
                     }
                 }
@@ -343,22 +350,22 @@ public class MobilityController {
             }
 
             //last entry
-            if (prev != null){
-                if (prev.getValue().size() > 1){
+            if (prev != null) {
+                if (prev.getValue().size() > 1) {
                     List<Integer> newList = new ArrayList<>();
-                    for (int i = 0; i < prev.getValue().size(); i ++){
-                        if ((i + 1) < prev.getValue().size()){
-                            if (!Objects.equals(prev.getValue().get(i), prev.getValue().get(i + 1))){
+                    for (int i = 0; i < prev.getValue().size(); i++) {
+                        if ((i + 1) < prev.getValue().size()) {
+                            if (!Objects.equals(prev.getValue().get(i), prev.getValue().get(i + 1))) {
                                 newList.add(prev.getValue().get(i));
                             }
-                        }else{
+                        } else {
                             newList.add(prev.getValue().get(i));
                         }
 
                     }
 
                     vIdMapFiltered.put(prev.getKey(), newList);
-                }else{
+                } else {
                     vIdMapFiltered.put(prev.getKey(), prev.getValue());
                 }
             }
