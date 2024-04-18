@@ -26,7 +26,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
@@ -241,7 +240,7 @@ public class MobilityController {
     }
 
     @GetMapping("/mobility/internal/download")
-    public ResponseEntity<Resource> downloadInternal(@RequestParam UUID[] datasetIds) {
+    public ResponseEntity<byte[]> downloadInternal(@RequestParam UUID[] datasetIds) {
         String errorMessage;
 
         if (datasetIds.length < 1) {
@@ -277,10 +276,14 @@ public class MobilityController {
                                 .queryParam("datasetIds", strList.substring(1, strList.length() - 1))
                                 .build().toUriString();
                         try {
-                            return restTemplate.restTemplate().exchange(url,
-                                    HttpMethod.GET, null, new ParameterizedTypeReference<>() {
-                                    });
 
+                            ResponseEntity<Resource> exchange = restTemplate.restTemplate()
+                                    .exchange(url, HttpMethod.GET, null, Resource.class);
+                            byte[] inputStream = exchange.getBody().getContentAsByteArray();
+                            return ResponseEntity.ok()
+                                    .header(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, HttpHeaders.CONTENT_DISPOSITION)
+                                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment;filename=datasets.zip")
+                                    .contentType(MediaType.parseMediaType("application/zip")).body(inputStream);
                         } catch (Exception ex) {
                             logger.error(ex.getMessage());
                             return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
