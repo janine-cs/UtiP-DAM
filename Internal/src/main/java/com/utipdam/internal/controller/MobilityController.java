@@ -29,6 +29,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import java.io.*;
 import java.nio.charset.StandardCharsets;
@@ -39,6 +40,8 @@ import java.nio.file.attribute.PosixFilePermissions;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 import static com.utipdam.internal.InternalApplication.token;
 
@@ -221,44 +224,53 @@ public class MobilityController {
     }
 
     @GetMapping("/mobility/download")
-    public ResponseEntity<Resource> downloadInternal(@RequestParam UUID datasetDefinitionId,
-                                                     @RequestParam UUID datasetId) throws IOException {
-        HttpHeaders responseHeaders = new HttpHeaders();
-
+    public ResponseEntity<StreamingResponseBody> downloadInternal(@RequestParam UUID datasetDefinitionId,
+                                                     @RequestParam String datasetIds) {
+        String errorMessage;
+        String[] datasetArr = datasetIds.replace("[", "").replace("]", "").split(",");
+        if (datasetArr.length < 1) {
+            errorMessage = "Please select at least one dataset - datasetIds";
+            logger.error(errorMessage);
+            return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+        }
         String path = "/data/mobility/" + datasetDefinitionId;
         File dir = new File(path);
-        FileFilter fileFilter = new WildcardFileFilter("*dataset-" + datasetId + "-*");
-        File[] files = dir.listFiles(fileFilter);
-        if (files != null) {
-            for (File fi : files) {
+        StreamingResponseBody streamResponse = clientOut -> {
+            try (ZipOutputStream zos = new ZipOutputStream(clientOut)) {
+                for (String datasetId : datasetArr) {
+                    FileFilter fileFilter = new WildcardFileFilter("*dataset-" + datasetId + "-*");
+                    File[] files = dir.listFiles(fileFilter);
 
-                BufferedReader file = new BufferedReader(
-                        new InputStreamReader(new FileSystemResource(fi).getInputStream()));
-                StringBuffer inputBuffer = new StringBuffer();
-                String line;
+                    if (files != null && files.length > 0) {
+                        File fi = files[0];
+                        addToZipFile(zos, new FileSystemResource(fi).getInputStream(), fi.getName());
 
-                while ((line = file.readLine()) != null) {
-                    inputBuffer.append(line);
-                    inputBuffer.append('\n');
+                    }
                 }
-                file.close();
-                String inputStr = inputBuffer.toString();
-
-                ContentDisposition contentDisposition = ContentDisposition.builder("inline")
-                        .filename(fi.getName())
-                        .build();
-                responseHeaders.setContentDisposition(contentDisposition);
-                InputStream stream = new ByteArrayInputStream(inputStr.getBytes(StandardCharsets.UTF_8));
-                InputStreamResource resource = new InputStreamResource(stream);
-                return ResponseEntity.ok()
-                        .headers(responseHeaders)
-                        .contentLength(stream.available())
-                        .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                        .body(resource);
+            } finally {
+                clientOut.close();
             }
-        }
 
-        return null;
+        };
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, HttpHeaders.CONTENT_DISPOSITION)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment;filename=datasets.zip")
+                .contentType(MediaType.parseMediaType("application/zip")).body(streamResponse);
+
+
+    }
+
+    private void addToZipFile(ZipOutputStream zos, InputStream fis, String filename) throws IOException {
+        ZipEntry zipEntry = new ZipEntry(filename);
+        zos.putNextEntry(zipEntry);
+        byte[] bytes = new byte[1024];
+        int length;
+        while ((length = fis.read(bytes)) >= 0) {
+            zos.write(bytes, 0, length);
+        }
+        zos.closeEntry();
+        fis.close();
     }
 
     @GetMapping("/mobility/visitorDetection")

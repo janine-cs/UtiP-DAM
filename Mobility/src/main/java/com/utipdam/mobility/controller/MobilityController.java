@@ -26,6 +26,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.couchbase.CouchbaseProperties;
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.InputStreamResource;
@@ -36,6 +37,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 import org.springframework.web.util.UriComponentsBuilder;
 
 
@@ -49,12 +51,13 @@ import java.sql.Date;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 @RestController
 public class MobilityController {
     private static final Logger logger = LoggerFactory.getLogger(MobilityController.class);
     private final String START_TIME = "first_time_seen";
-    private final String RESOLUTION = "daily";
     private final String DATE_FORMAT = "yyyy-MM-dd";
     private final Integer HIGH_RISK = 10;
     private final Integer LOW_RISK = 50;
@@ -87,7 +90,7 @@ public class MobilityController {
 
         String errorMessage;
 
-        if (file.isEmpty()){
+        if (file.isEmpty()) {
             errorMessage = "File is required";
             logger.error(errorMessage);
             throw new ResponseStatusException(
@@ -189,9 +192,16 @@ public class MobilityController {
     }
 
     @GetMapping("/mobility/download")
-    public ResponseEntity<Resource> download(@RequestParam UUID datasetId) {
-        HttpHeaders responseHeaders = new HttpHeaders();
-        Optional<Dataset> dataset = datasetBusiness.getById(datasetId);
+    public ResponseEntity<StreamingResponseBody> download(@RequestParam UUID[] datasetIds) {
+        String errorMessage;
+
+        if (datasetIds.length < 1) {
+            errorMessage = "Please select at least one dataset - datasetIds";
+            logger.error(errorMessage);
+            return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+        }
+
+        Optional<Dataset> dataset = datasetBusiness.getById(datasetIds[0]);
         if (dataset.isPresent()) {
             Dataset datasetObj = dataset.get();
             Optional<DatasetDefinition> df = datasetDefinitionBusiness.getById(datasetObj.getDatasetDefinition().getId());
@@ -202,41 +212,31 @@ public class MobilityController {
                     logger.info(definitionObj.getInternal().toString());
                     String path = "/data/mobility/" + datasetObj.getDatasetDefinition().getId();
                     File dir = new File(path);
-                    FileFilter fileFilter = new WildcardFileFilter("*dataset-" + datasetId + "-*");
-                    File[] files = dir.listFiles(fileFilter);
-                    if (files != null) {
-                        for (File fi : files) {
 
-                            try {
-                                BufferedReader file = new BufferedReader(
-                                        new InputStreamReader(new FileSystemResource(fi).getInputStream()));
-                                StringBuffer inputBuffer = new StringBuffer();
-                                String line;
+                    StreamingResponseBody streamResponse = clientOut -> {
+                        try (ZipOutputStream zos = new ZipOutputStream(clientOut)) {
+                            for (UUID datasetId : datasetIds) {
+                                FileFilter fileFilter = new WildcardFileFilter("*dataset-" + datasetId + "-*");
+                                File[] files = dir.listFiles(fileFilter);
 
-                                while ((line = file.readLine()) != null) {
-                                    inputBuffer.append(line);
-                                    inputBuffer.append('\n');
+                                if (files != null && files.length > 0) {
+                                    File fi = files[0];
+                                    addToZipFile(zos, new FileSystemResource(fi).getInputStream(), fi.getName());
+
                                 }
-                                file.close();
-                                String inputStr = inputBuffer.toString();
-
-                                ContentDisposition contentDisposition = ContentDisposition.builder("inline")
-                                        .filename(fi.getName())
-                                        .build();
-                                responseHeaders.setContentDisposition(contentDisposition);
-                                InputStream stream = new ByteArrayInputStream(inputStr.getBytes(StandardCharsets.UTF_8));
-                                InputStreamResource resource = new InputStreamResource(stream);
-                                return ResponseEntity.ok()
-                                        .headers(responseHeaders)
-                                        .contentLength(stream.available())
-                                        .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                                        .body(resource);
-                            } catch (IOException e) {
-                                logger.error(e.getMessage());
-                                return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
                             }
+                        } finally {
+                            clientOut.close();
                         }
-                    }
+
+                    };
+
+                    return ResponseEntity.ok()
+                            .header(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, HttpHeaders.CONTENT_DISPOSITION)
+                            .header(HttpHeaders.CONTENT_DISPOSITION, "attachment;filename=datasets.zip")
+                            .contentType(MediaType.parseMediaType("application/zip")).body(streamResponse);
+
+
                 } else {
                     logger.info("downloading from internal server");
                     //download from internal archive server
@@ -249,7 +249,7 @@ public class MobilityController {
                         String url = UriComponentsBuilder
                                 .fromUriString(uri)
                                 .queryParam("datasetDefinitionId", definitionObj.getId())
-                                .queryParam("datasetId", datasetObj.getId())
+                                .queryParam("datasetIds", Arrays.toString(datasetIds))
                                 .build().toUriString();
                         try {
                             return restTemplate.restTemplate().exchange(url,
@@ -266,7 +266,20 @@ public class MobilityController {
             }
         }
 
+
         return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+    }
+
+    private void addToZipFile(ZipOutputStream zos, InputStream fis, String filename) throws IOException {
+        ZipEntry zipEntry = new ZipEntry(filename);
+        zos.putNextEntry(zipEntry);
+        byte[] bytes = new byte[1024];
+        int length;
+        while ((length = fis.read(bytes)) >= 0) {
+            zos.write(bytes, 0, length);
+        }
+        zos.closeEntry();
+        fis.close();
     }
 
     public static boolean isNumeric(String str) {
@@ -294,7 +307,7 @@ public class MobilityController {
                     HttpStatus.BAD_REQUEST, errorMessage);
         }
 
-        if (file.isEmpty()){
+        if (file.isEmpty()) {
             errorMessage = "File is required";
             logger.error(errorMessage);
             throw new ResponseStatusException(
@@ -546,22 +559,22 @@ public class MobilityController {
                             while (iterator.hasNext()) {
                                 Map.Entry<Long, List<Integer>> next = iterator.next();
 
-                                if (prev != null){
-                                    if (prev.getValue().size() > 1){
+                                if (prev != null) {
+                                    if (prev.getValue().size() > 1) {
                                         List<Integer> newList = new ArrayList<>();
-                                        for (int i = 0; i < prev.getValue().size(); i ++){
-                                            if ((i + 1) < prev.getValue().size()){
-                                                if (!Objects.equals(prev.getValue().get(i), prev.getValue().get(i + 1))){
+                                        for (int i = 0; i < prev.getValue().size(); i++) {
+                                            if ((i + 1) < prev.getValue().size()) {
+                                                if (!Objects.equals(prev.getValue().get(i), prev.getValue().get(i + 1))) {
                                                     newList.add(prev.getValue().get(i));
                                                 }
-                                            }else{
+                                            } else {
                                                 newList.add(prev.getValue().get(i));
                                             }
 
                                         }
 
                                         vIdMapFiltered.put(prev.getKey(), newList);
-                                    }else{
+                                    } else {
                                         vIdMapFiltered.put(prev.getKey(), prev.getValue());
                                     }
                                 }
@@ -571,26 +584,25 @@ public class MobilityController {
                             }
 
                             //last entry
-                            if (prev != null){
-                                if (prev.getValue().size() > 1){
+                            if (prev != null) {
+                                if (prev.getValue().size() > 1) {
                                     List<Integer> newList = new ArrayList<>();
-                                    for (int i = 0; i < prev.getValue().size(); i ++){
-                                        if ((i + 1) < prev.getValue().size()){
-                                            if (!Objects.equals(prev.getValue().get(i), prev.getValue().get(i + 1))){
+                                    for (int i = 0; i < prev.getValue().size(); i++) {
+                                        if ((i + 1) < prev.getValue().size()) {
+                                            if (!Objects.equals(prev.getValue().get(i), prev.getValue().get(i + 1))) {
                                                 newList.add(prev.getValue().get(i));
                                             }
-                                        }else{
+                                        } else {
                                             newList.add(prev.getValue().get(i));
                                         }
 
                                     }
 
                                     vIdMapFiltered.put(prev.getKey(), newList);
-                                }else{
+                                } else {
                                     vIdMapFiltered.put(prev.getKey(), prev.getValue());
                                 }
                             }
-
 
 
                             int i = 0;
@@ -728,7 +740,7 @@ public class MobilityController {
         Map<String, Object> response = new HashMap<>();
         String errorMessage;
 
-        if (file.isEmpty()){
+        if (file.isEmpty()) {
             errorMessage = "File is required";
             logger.error(errorMessage);
             response.put("error", errorMessage);
@@ -788,22 +800,22 @@ public class MobilityController {
             while (iterator.hasNext()) {
                 Map.Entry<Long, List<Integer>> next = iterator.next();
 
-                if (prev != null){
-                    if (prev.getValue().size() > 1){
+                if (prev != null) {
+                    if (prev.getValue().size() > 1) {
                         List<Integer> newList = new ArrayList<>();
-                        for (int i = 0; i < prev.getValue().size(); i ++){
-                            if ((i + 1) < prev.getValue().size()){
-                                if (!Objects.equals(prev.getValue().get(i), prev.getValue().get(i + 1))){
+                        for (int i = 0; i < prev.getValue().size(); i++) {
+                            if ((i + 1) < prev.getValue().size()) {
+                                if (!Objects.equals(prev.getValue().get(i), prev.getValue().get(i + 1))) {
                                     newList.add(prev.getValue().get(i));
                                 }
-                            }else{
+                            } else {
                                 newList.add(prev.getValue().get(i));
                             }
 
                         }
 
                         vIdMapFiltered.put(prev.getKey(), newList);
-                    }else{
+                    } else {
                         vIdMapFiltered.put(prev.getKey(), prev.getValue());
                     }
                 }
@@ -813,28 +825,28 @@ public class MobilityController {
             }
 
             //last entry
-            if (prev != null){
-                if (prev.getValue().size() > 1){
+            if (prev != null) {
+                if (prev.getValue().size() > 1) {
                     List<Integer> newList = new ArrayList<>();
-                    for (int i = 0; i < prev.getValue().size(); i ++){
-                        if ((i + 1) < prev.getValue().size()){
-                            if (!Objects.equals(prev.getValue().get(i), prev.getValue().get(i + 1))){
+                    for (int i = 0; i < prev.getValue().size(); i++) {
+                        if ((i + 1) < prev.getValue().size()) {
+                            if (!Objects.equals(prev.getValue().get(i), prev.getValue().get(i + 1))) {
                                 newList.add(prev.getValue().get(i));
                             }
-                        }else{
+                        } else {
                             newList.add(prev.getValue().get(i));
                         }
 
                     }
 
                     vIdMapFiltered.put(prev.getKey(), newList);
-                }else{
+                } else {
                     vIdMapFiltered.put(prev.getKey(), prev.getValue());
                 }
             }
 
-            Map<IntegerList, Long> vMapResult = vIdMapFiltered.values().stream().filter(v-> !v.isEmpty()).collect(Collectors.groupingBy(IntegerList::new, Collectors.counting()));
-            vMapResult = vMapResult.entrySet().stream().filter(v -> v.getValue() <= Integer.parseInt(k)).collect(Collectors.toMap(e->e.getKey(),e->e.getValue()));
+            Map<IntegerList, Long> vMapResult = vIdMapFiltered.values().stream().filter(v -> !v.isEmpty()).collect(Collectors.groupingBy(IntegerList::new, Collectors.counting()));
+            vMapResult = vMapResult.entrySet().stream().filter(v -> v.getValue() <= Integer.parseInt(k)).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
             response.put("data", vMapResult);
             return new ResponseEntity<>(response, HttpStatus.OK);
@@ -848,7 +860,7 @@ public class MobilityController {
 
     @GetMapping("/deviceToVisitorId")
     public String deviceToVisitorId(@RequestParam Integer sensorId, @RequestParam String mac) {
-        return sensorId + "_" + Hashing.sha256().hashString(formatToValidMac(mac), StandardCharsets.UTF_8);
+        return Hashing.sha512().hashString(sensorId + "_" + formatToValidMac(mac), StandardCharsets.UTF_8).toString();
     }
 
     private static String formatToValidMac(String mac) {
