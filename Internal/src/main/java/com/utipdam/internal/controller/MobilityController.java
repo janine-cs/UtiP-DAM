@@ -237,16 +237,9 @@ public class MobilityController {
                     for (String datasetId : datasetArr) {
                         FileFilter fileFilter = new WildcardFileFilter("*dataset-" + datasetId + "-*");
                         File[] files = dir.listFiles(fileFilter);
-
-
-                        if (files != null) {
-
-                            if (files != null && files.length > 0) {
-                                File fi = files[0];
-                                addToZipFile(zos, new FileSystemResource(fi).getInputStream(), fi.getName());
-
-                            }
-
+                        if (files != null && files.length > 0) {
+                            File fi = files[0];
+                            addToZipFile(zos, new FileSystemResource(fi).getInputStream(), fi.getName());
                         }
                     }
                 } finally {
@@ -259,8 +252,6 @@ public class MobilityController {
                     .header(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, HttpHeaders.CONTENT_DISPOSITION)
                     .header(HttpHeaders.CONTENT_DISPOSITION, "attachment;filename=datasets.zip")
                     .contentType(MediaType.parseMediaType("application/zip")).body(streamResponse);
-
-
         } else {
             logger.error("dataset definition path not found");
             return new ResponseEntity<>(HttpStatus.NO_CONTENT);

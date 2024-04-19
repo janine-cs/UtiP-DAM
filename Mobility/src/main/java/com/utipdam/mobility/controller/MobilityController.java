@@ -45,6 +45,9 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.PosixFilePermissions;
+import java.security.KeyManagementException;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
 import java.sql.Date;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -190,7 +193,7 @@ public class MobilityController {
     }
 
     @GetMapping("/mobility/download")
-    public ResponseEntity<byte[]> download(@RequestParam UUID[] datasetIds) throws IOException {
+    public ResponseEntity<byte[]> download(@RequestParam UUID[] datasetIds) {
         String errorMessage;
 
         if (datasetIds.length < 1) {
@@ -230,16 +233,25 @@ public class MobilityController {
 
                     };
                     ByteArrayOutputStream os =  new ByteArrayOutputStream(1024);
-                    streamResponse.writeTo(os);
-                    return ResponseEntity.ok()
-                            .header(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, HttpHeaders.CONTENT_DISPOSITION)
-                            .header(HttpHeaders.CONTENT_DISPOSITION, "attachment;filename=datasets.zip")
-                            .contentType(MediaType.parseMediaType("application/zip")).body(os.toByteArray());
+                    try {
+                        streamResponse.writeTo(os);
+                        return ResponseEntity.ok()
+                                .header(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, HttpHeaders.CONTENT_DISPOSITION)
+                                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment;filename=datasets.zip")
+                                .contentType(MediaType.parseMediaType("application/zip")).body(os.toByteArray());
 
+                    } catch (IOException ex) {
+                        logger.error(ex.getMessage());
+                        return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+                    }
                 } else {
                     logger.info("downloading from internal server");
                     //download from internal archive server
                     RestTemplateClient restTemplate = new RestTemplateClient();
+                    if (df.get().getServer() == null){
+                        logger.error("No internal server specified");
+                        return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+                    }
                     String domain = df.get().getServer().getDomain();
 
                     if (domain != null) {
@@ -249,18 +261,17 @@ public class MobilityController {
                         String url = UriComponentsBuilder
                                 .fromUriString(uri)
                                 .queryParam("datasetDefinitionId", definitionObj.getId().toString())
-                                .queryParam("datasetIds", strList.substring(1, strList.length() - 1))
+                                .queryParam("datasetIds", strList.substring(1, strList.length() - 1).replaceAll(" ", "").trim())
                                 .build().toUriString();
                         try {
-
                             ResponseEntity<Resource> exchange = restTemplate.restTemplate()
                                     .exchange(url, HttpMethod.GET, null, Resource.class);
-                            byte[] inputStream = exchange.getBody().getContentAsByteArray();
+                            byte[] inputStream = Objects.requireNonNull(exchange.getBody()).getContentAsByteArray();
                             return ResponseEntity.ok()
                                     .header(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, HttpHeaders.CONTENT_DISPOSITION)
                                     .header(HttpHeaders.CONTENT_DISPOSITION, "attachment;filename=datasets.zip")
                                     .contentType(MediaType.parseMediaType("application/zip")).body(inputStream);
-                        } catch (Exception ex) {
+                        } catch (KeyStoreException | NoSuchAlgorithmException | KeyManagementException | IOException ex) {
                             logger.error(ex.getMessage());
                             return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
                         }
@@ -269,7 +280,6 @@ public class MobilityController {
                 }
             }
         }
-
 
         return new ResponseEntity<>(HttpStatus.NO_CONTENT);
     }
