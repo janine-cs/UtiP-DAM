@@ -861,9 +861,23 @@ public class MobilityController {
             }
 
             Map<IntegerList, Long> vMapResult = vIdMapFiltered.values().stream().filter(v -> !v.isEmpty()).collect(Collectors.groupingBy(IntegerList::new, Collectors.counting()));
-            vMapResult = vMapResult.entrySet().stream().filter(v -> v.getValue() <= Integer.parseInt(k)).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
 
-            response.put("data", vMapResult);
+            if (vMapResult.entrySet().isEmpty()){
+                response.put("data", null);
+                response.put("minK", null);
+                response.put("result", null);
+            }else{
+                Long min = Collections.min(vMapResult.values());
+                response.put("data", vMapResult);
+                vMapResult = vMapResult.entrySet().stream().filter(v -> v.getValue() < Integer.parseInt(k)).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+                if (vMapResult.entrySet().isEmpty()){
+                    response.put("result", "success");
+                }else{
+                    response.put("result", "fail");
+                }
+                response.put("minK", min);
+            }
+
             return new ResponseEntity<>(response, HttpStatus.OK);
         } catch (IOException e) {
             errorMessage = e.getMessage();
