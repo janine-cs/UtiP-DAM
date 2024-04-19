@@ -875,7 +875,7 @@ public class MobilityController {
 
     @GetMapping("/deviceToVisitorId")
     public String deviceToVisitorId(@RequestParam Integer sensorId, @RequestParam String mac) {
-        return Hashing.sha512().hashString(sensorId + "_" + formatToValidMac(mac), StandardCharsets.UTF_8).toString();
+        return Hashing.sha256().hashString(sensorId + "_" + formatToValidMac(mac), StandardCharsets.UTF_8).toString();
     }
 
     private static String formatToValidMac(String mac) {
