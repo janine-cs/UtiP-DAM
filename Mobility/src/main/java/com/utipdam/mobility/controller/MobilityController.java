@@ -865,16 +865,10 @@ public class MobilityController {
             if (vMapResult.entrySet().isEmpty()){
                 response.put("data", null);
                 response.put("minK", null);
-                response.put("result", null);
             }else{
                 Long min = Collections.min(vMapResult.values());
-                response.put("data", vMapResult);
                 vMapResult = vMapResult.entrySet().stream().filter(v -> v.getValue() < Integer.parseInt(k)).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-                if (vMapResult.entrySet().isEmpty()){
-                    response.put("result", "success");
-                }else{
-                    response.put("result", "fail");
-                }
+                response.put("data", vMapResult);
                 response.put("minK", min);
             }
 
