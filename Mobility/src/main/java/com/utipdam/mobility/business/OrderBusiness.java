@@ -6,7 +6,10 @@ import com.utipdam.mobility.model.service.*;
 import org.springframework.beans.factory.annotation.Autowired;
 
 
+import java.sql.Date;
+import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 
 @BusinessService
@@ -20,6 +23,9 @@ public class OrderBusiness {
 
     @Autowired
     private PaymentDetailService paymentDetailService;
+
+    @Autowired
+    private DownloadsByDayService downloadsByDayService;
 
     public OrderDetail saveOrderDetail(OrderDetail orderDetail){
         return orderDetailService.save(orderDetail);
@@ -61,6 +67,22 @@ public class OrderBusiness {
 //            return null;
 //        }
 //    }
+
+    public void incrementCount(Integer id){
+        downloadsByDayService.incrementCount(id);
+    }
+
+    public DownloadsByDay getByDatasetDefinitionIdAndDate(UUID datasetDefinitionId, Date date) {
+        return downloadsByDayService.findByDatasetDefinitionIdAndDate(datasetDefinitionId, date);
+    }
+
+    public List<DownloadsByDay> getAllByDatasetDefinitionId(UUID datasetDefinitionId) {
+        return downloadsByDayService.findByDatasetDefinitionId(datasetDefinitionId);
+    }
+
+    public void saveDownloads(DownloadsByDay downloadsByDay){
+        downloadsByDayService.save(downloadsByDay);
+    }
 
     public void delete(Integer id) {
         orderItemService.delete(id);

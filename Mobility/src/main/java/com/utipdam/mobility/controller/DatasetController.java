@@ -2,6 +2,7 @@ package com.utipdam.mobility.controller;
 
 import com.utipdam.mobility.business.DatasetDefinitionBusiness;
 import com.utipdam.mobility.business.DatasetBusiness;
+import com.utipdam.mobility.business.OrderBusiness;
 import com.utipdam.mobility.exception.DefaultException;
 import com.utipdam.mobility.model.DatasetDTO;
 import com.utipdam.mobility.model.DatasetDefinitionDTO;
@@ -9,6 +10,7 @@ import com.utipdam.mobility.model.DatasetListDTO;
 import com.utipdam.mobility.model.DatasetResponseDTO;
 import com.utipdam.mobility.model.entity.Dataset;
 import com.utipdam.mobility.model.entity.DatasetDefinition;
+import com.utipdam.mobility.model.entity.DownloadsByDay;
 import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,6 +35,10 @@ public class DatasetController {
     @Autowired
     private DatasetBusiness datasetBusiness;
 
+    @Autowired
+    private OrderBusiness orderBusiness;
+
+
     private final String PATH = "/data/mobility";
 
     @GetMapping("/datasets")
@@ -42,6 +48,7 @@ public class DatasetController {
         Stream<DatasetResponseDTO> data = datasetDefinitionBusiness.getAll().stream().
                 map(d -> {
                     List<DatasetListDTO> dsList = datasetBusiness.getAllByDatasetDefinitionId(d.getId());
+                    List<DownloadsByDay> dlList = orderBusiness.getAllByDatasetDefinitionId(d.getId());
 
                     return new DatasetResponseDTO(d.getName(),
                             d.getDescription(), d.getCountryCode(), d.getCity(),
@@ -50,7 +57,8 @@ public class DatasetController {
                             d.getUpdatedOn(), (long) dsList.stream().filter(o -> o != null && o.getDataPoints() != null)
                             .mapToLong(DatasetListDTO::getDataPoints)
                             .average()
-                            .orElse(0L), dsList, d.getUserId(), d.getInternal());
+                            .orElse(0L), dsList, d.getUserId(), d.getInternal(),
+                            dlList.stream().mapToInt(DownloadsByDay::getCount).sum());
 
                 });
 
@@ -82,6 +90,7 @@ public class DatasetController {
         if (opt.isPresent()) {
             DatasetDefinition d = opt.get();
             List<DatasetListDTO> dsList = datasetBusiness.getAllByDatasetDefinitionId(d.getId());
+            List<DownloadsByDay> dlList = orderBusiness.getAllByDatasetDefinitionId(d.getId());
 
             response.put("data", new DatasetResponseDTO(d.getName(),
                     d.getDescription(), d.getCountryCode(), d.getCity(),
@@ -90,7 +99,8 @@ public class DatasetController {
                     d.getUpdatedOn(), (long) dsList.stream().filter(o -> o != null && o.getDataPoints() != null)
                     .mapToLong(DatasetListDTO::getDataPoints)
                     .average()
-                    .orElse(0L), dsList, d.getUserId(), d.getInternal()));
+                    .orElse(0L), dsList, d.getUserId(), d.getInternal(),
+                    dlList.stream().mapToInt(DownloadsByDay::getCount).sum()));
             return new ResponseEntity<>(response, HttpStatus.OK);
         } else {
             return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);

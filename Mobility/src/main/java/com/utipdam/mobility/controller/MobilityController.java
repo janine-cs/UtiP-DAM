@@ -13,6 +13,7 @@ import com.opencsv.exceptions.CsvValidationException;
 import com.utipdam.mobility.FileUploadUtil;
 import com.utipdam.mobility.business.DatasetDefinitionBusiness;
 import com.utipdam.mobility.business.DatasetBusiness;
+import com.utipdam.mobility.business.OrderBusiness;
 import com.utipdam.mobility.config.AuthTokenFilter;
 import com.utipdam.mobility.config.RestTemplateClient;
 import com.utipdam.mobility.model.*;
@@ -49,6 +50,7 @@ import java.security.KeyManagementException;
 import java.security.KeyStoreException;
 import java.security.NoSuchAlgorithmException;
 import java.sql.Date;
+import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -71,6 +73,10 @@ public class MobilityController {
 
     @Autowired
     private DatasetBusiness datasetBusiness;
+
+    @Autowired
+    private OrderBusiness orderBusiness;
+
 
     @Autowired
     UserRepository userRepository;
@@ -233,6 +239,7 @@ public class MobilityController {
 
                     };
                     ByteArrayOutputStream os =  new ByteArrayOutputStream(1024);
+                    incrementDownload(definitionObj.getId());
                     try {
                         streamResponse.writeTo(os);
                         return ResponseEntity.ok()
@@ -267,6 +274,9 @@ public class MobilityController {
                             ResponseEntity<Resource> exchange = restTemplate.restTemplate()
                                     .exchange(url, HttpMethod.GET, null, Resource.class);
                             byte[] inputStream = Objects.requireNonNull(exchange.getBody()).getContentAsByteArray();
+
+                            incrementDownload(definitionObj.getId());
+
                             return ResponseEntity.ok()
                                     .header(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, HttpHeaders.CONTENT_DISPOSITION)
                                     .header(HttpHeaders.CONTENT_DISPOSITION, "attachment;filename=datasets.zip")
@@ -284,6 +294,15 @@ public class MobilityController {
         return new ResponseEntity<>(HttpStatus.NO_CONTENT);
     }
 
+    private void incrementDownload(UUID datasetDefinitionId){
+        DownloadsByDay downloadsByDay = orderBusiness.getByDatasetDefinitionIdAndDate(datasetDefinitionId, Date.valueOf(LocalDate.now()));
+        if (downloadsByDay == null){
+            downloadsByDay = new DownloadsByDay(datasetDefinitionId, Date.valueOf(LocalDate.now()), 1);
+            orderBusiness.saveDownloads(downloadsByDay);
+        }else{
+            orderBusiness.incrementCount(downloadsByDay.getId());
+        }
+    }
 
     private void addToZipFile(ZipOutputStream zos, InputStream fis, String filename) throws IOException {
         ZipEntry zipEntry = new ZipEntry(filename);

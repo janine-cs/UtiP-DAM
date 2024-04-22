@@ -20,6 +20,7 @@ public class DatasetResponseDTO {
     private List<DatasetListDTO> datasets;
     private Long dataPoints;
     private Long userId;
+    private Integer downloadCount;
     private String updatedOn;
 
     public DatasetResponseDTO() {
@@ -28,7 +29,8 @@ public class DatasetResponseDTO {
     public DatasetResponseDTO(String name, String description,
                               String countryCode, String city, Double fee, Boolean publish,
                               Organization organization, UUID datasetDefinitionId,
-                              String updatedOn, Long dataPoints, List<DatasetListDTO> datasets, Long userId, Boolean internal) {
+                              String updatedOn, Long dataPoints, List<DatasetListDTO> datasets,
+                              Long userId, Boolean internal, Integer downloadCount) {
         this.datasetDefinitionId = datasetDefinitionId;
         this.name = name;
         this.description = description;
@@ -41,6 +43,7 @@ public class DatasetResponseDTO {
         this.datasets = datasets;
         this.dataPoints = dataPoints;
         this.userId = userId;
+        this.downloadCount = downloadCount;
         this.updatedOn = updatedOn;
     }
 }
