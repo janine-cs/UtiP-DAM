@@ -10,7 +10,6 @@ import com.opencsv.CSVReaderBuilder;
 import com.opencsv.RFC4180Parser;
 import com.opencsv.RFC4180ParserBuilder;
 import com.opencsv.exceptions.CsvValidationException;
-import com.utipdam.mobility.FileUploadUtil;
 import com.utipdam.mobility.business.DatasetDefinitionBusiness;
 import com.utipdam.mobility.business.DatasetBusiness;
 import com.utipdam.mobility.business.OrderBusiness;
@@ -21,6 +20,7 @@ import com.utipdam.mobility.model.entity.*;
 import com.utipdam.mobility.model.repository.RoleRepository;
 import com.utipdam.mobility.model.repository.UserRepository;
 import org.antlr.v4.runtime.misc.IntegerList;
+import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.WildcardFileFilter;
 import org.apache.commons.validator.GenericValidator;
 import org.slf4j.Logger;
@@ -44,7 +44,6 @@ import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.security.KeyManagementException;
 import java.security.KeyStoreException;
@@ -53,7 +52,6 @@ import java.sql.Date;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -76,7 +74,6 @@ public class MobilityController {
 
     @Autowired
     private OrderBusiness orderBusiness;
-
 
     @Autowired
     UserRepository userRepository;
@@ -123,73 +120,88 @@ public class MobilityController {
                     HttpStatus.BAD_REQUEST, errorMessage);
         }
 
-
         String csvDate = null;
-        InputStream is;
         StringBuffer inputBuffer = new StringBuffer();
+
+        //anonymization process
         try {
+            byte[] encoded = file.getBytes();
+            String content = new String(encoded, StandardCharsets.UTF_8);
+            ProcessBuilder processBuilder = new ProcessBuilder("python3","/opt/utils/anonymization.py","--input",content,"--k",k);
+            processBuilder.redirectErrorStream(true);
+
+            Process process = processBuilder.start();
+            BufferedReader br = new BufferedReader(new InputStreamReader(process.getInputStream()));
+            int exitVal = process.waitFor();
             String line;
-            is = file.getInputStream();
-            BufferedReader br = new BufferedReader(new InputStreamReader(is));
-
             long i = 0;
-            int dateIndex = -1;
-            while ((line = br.readLine()) != null) {
-                inputBuffer.append(line);
-                inputBuffer.append('\n');
+            logger.info("exitVal " + exitVal);
+            if (exitVal == 0) {
+                int dateIndex = -1;
+                while ((line = br.readLine()) != null) {
+                    if (i == 0 || dateIndex < 0) {
+                        if (!line.contains("site")){
+                            continue;
+                        }
+                        String[] nextRecord = line.split(",");
+                        dateIndex = Arrays.asList(nextRecord).indexOf(START_TIME);
+                        if (dateIndex < 0) {
+                            dateIndex = Arrays.asList(nextRecord).indexOf("start_time");
+                        }
 
-                if (i == 0) {
-                    String[] nextRecord = line.split(",");
-                    dateIndex = Arrays.asList(nextRecord).indexOf(START_TIME);
-                    if (dateIndex < 0) {
-                        dateIndex = Arrays.asList(nextRecord).indexOf("start_time");
                     }
 
-                }
+                    inputBuffer.append(line);
+                    inputBuffer.append('\n');
 
-                if (dateIndex > 0 && i == 1) {
-                    csvDate = line.split(",")[dateIndex];
-                    csvDate = csvDate.split(" ")[0];
-                    if (!GenericValidator.isDate(csvDate, DATE_FORMAT, true)) {
-                        errorMessage = "first_time_seen must be yyyy-MM-dd HH:mm:ss format";
-                        logger.error(errorMessage);
-                        throw new ResponseStatusException(
-                                HttpStatus.BAD_REQUEST, errorMessage);
+                    if (dateIndex > 0 && i == 1) {
+                        csvDate = line.split(",")[dateIndex];
+                        csvDate = csvDate.split(" ")[0];
+                        if (!GenericValidator.isDate(csvDate, DATE_FORMAT, true)) {
+                            errorMessage = "first_time_seen must be yyyy-MM-dd HH:mm:ss format";
+                            logger.error(errorMessage);
+                            throw new ResponseStatusException(
+                                    HttpStatus.BAD_REQUEST, errorMessage);
+                        }
                     }
+                    i++;
                 }
-                i++;
-            }
+                logger.info("dataPoints:" + (i - 1));
+                if (csvDate != null) {
+                    HttpHeaders responseHeaders = new HttpHeaders();
 
-            logger.info("dataPoints:" + (i - 1));
-            if (csvDate != null) {
-                HttpHeaders responseHeaders = new HttpHeaders();
+                    String inputStr = inputBuffer.toString();
 
-                String inputStr = inputBuffer.toString();
+                    ContentDisposition contentDisposition = ContentDisposition.builder("inline")
+                            .filename("dataset-" + csvDate + ".csv")
+                            .build();
+                    responseHeaders.setContentDisposition(contentDisposition);
+                    InputStream inputStream = new ByteArrayInputStream(inputStr.getBytes(StandardCharsets.UTF_8));
+                    InputStreamResource resource = new InputStreamResource(inputStream);
+                    br.close();
+
+                    return ResponseEntity.ok()
+                            .headers(responseHeaders)
+                            .contentLength(inputStream.available())
+                            .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                            .body(resource);
 
 
-                ContentDisposition contentDisposition = ContentDisposition.builder("inline")
-                        .filename("dataset-" + csvDate + ".csv")
-                        .build();
-                responseHeaders.setContentDisposition(contentDisposition);
-                InputStream inputStream = new ByteArrayInputStream(inputStr.getBytes(StandardCharsets.UTF_8));
-                InputStreamResource resource = new InputStreamResource(inputStream);
-                br.close();
-
-                return ResponseEntity.ok()
-                        .headers(responseHeaders)
-                        .contentLength(inputStream.available())
-                        .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                        .body(resource);
-
+                } else {
+                    errorMessage = "An error occurred while processing your request";
+                    logger.error(errorMessage);
+                    throw new ResponseStatusException(
+                            HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
+                }
 
             } else {
-                errorMessage = "An error occurred while processing your request";
+                errorMessage = "Error in anonymization.py command";
                 logger.error(errorMessage);
                 throw new ResponseStatusException(
                         HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
             }
 
-        } catch (IOException e) {
+        } catch (IOException | InterruptedException e) {
             errorMessage = e.getMessage();
             logger.error(errorMessage);
             throw new ResponseStatusException(
@@ -415,112 +427,117 @@ public class MobilityController {
                     HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
         }
 
-
-        Path uploadPath = Paths.get(path);
         String fileName;
-        BufferedReader br;
         String csvDate = null;
+        StringBuffer inputBuffer = new StringBuffer();
 
+        //anonymization process
         try {
+            byte[] encoded = file.getBytes();
+            String content = new String(encoded, StandardCharsets.UTF_8);
+            ProcessBuilder processBuilder = new ProcessBuilder("python3", "/opt/utils/anonymization.py",
+                    "--input", content , "--k", String.valueOf(dto.getK()));
+            processBuilder.redirectErrorStream(true);
+
+            Process process = processBuilder.start();
+            BufferedReader br = new BufferedReader(new InputStreamReader(process.getInputStream()));
+            int exitVal = process.waitFor();
             String line;
-            InputStream is = file.getInputStream();
-            br = new BufferedReader(new InputStreamReader(is));
-            line = br.readLine();
-            String[] nextRecord;
-            if (line != null) {
-                nextRecord = line.split(",");
-                int dateIndex = Arrays.asList(nextRecord).indexOf(START_TIME);
-                if (dateIndex < 0) {
-                    dateIndex = Arrays.asList(nextRecord).indexOf("start_time");
+            long i = 0;
+            if (exitVal == 0) {
+
+                int dateIndex = -1;
+                while ((line = br.readLine()) != null) {
+                    if (i == 0 || dateIndex < 0) {
+                        if (!line.contains("site")){
+                            continue;
+                        }
+                        String[] nextRecord = line.split(",");
+                        dateIndex = Arrays.asList(nextRecord).indexOf(START_TIME);
+                        if (dateIndex < 0) {
+                            dateIndex = Arrays.asList(nextRecord).indexOf("start_time");
+                        }
+
+                    }
+
+                    inputBuffer.append(line);
+                    inputBuffer.append('\n');
+
+                    if (dateIndex > 0 && i == 1) {
+                        csvDate = line.split(",")[dateIndex];
+                        csvDate = csvDate.split(" ")[0];
+                        if (!GenericValidator.isDate(csvDate, DATE_FORMAT, true)) {
+                            errorMessage = "first_time_seen must be yyyy-MM-dd HH:mm:ss format";
+                            logger.error(errorMessage);
+                            throw new ResponseStatusException(
+                                    HttpStatus.BAD_REQUEST, errorMessage);
+                        }
+                    }
+                    i++;
                 }
 
-                if (dateIndex > 0 && (line = br.readLine()) != null) {
-                    csvDate = line.split(",")[dateIndex];
-                    csvDate = csvDate.split(" ")[0];
-                    if (!GenericValidator.isDate(csvDate, DATE_FORMAT, true)) {
-                        errorMessage = "first_time_seen must be yyyy-MM-dd HH:mm:ss format";
+                if (csvDate != null) {
+                    String inputStr = inputBuffer.toString();
+
+                    UUID uuid = UUID.randomUUID();
+                    fileName = "dataset-" + uuid + "-" + csvDate + ".csv";
+                    String strPath = path + "/" + fileName;
+                    File fi = new File(strPath);
+                    fi.setReadable(true, false);
+                    fi.setWritable(true, false);
+
+                    long dataPoints = i- 1;
+                    logger.info("dataPoints:" + dataPoints);
+                    Dataset d = new Dataset();
+
+                    d.setId(uuid);
+                    d.setDatasetDefinition(ds);
+                    d.setStartDate(Date.valueOf(csvDate));
+                    d.setEndDate(Date.valueOf(csvDate));
+                    d.setResolution(dto.getResolution());
+                    d.setK(dto.getK());
+                    d.setDataPoints(dataPoints);
+
+                    datasetBusiness.save(d);
+
+                    try {
+                        FileUtils.writeByteArrayToFile(fi, inputStr.getBytes(StandardCharsets.UTF_8));
+                    } catch (IOException e) {
+                        errorMessage = e.getMessage();
                         logger.error(errorMessage);
                         throw new ResponseStatusException(
-                                HttpStatus.BAD_REQUEST, errorMessage);
+                                HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
                     }
+
+                    HttpHeaders responseHeaders = new HttpHeaders();
+
+                    ContentDisposition contentDisposition = ContentDisposition.builder("inline")
+                            .filename(fileName)
+                            .build();
+                    responseHeaders.setContentDisposition(contentDisposition);
+                    InputStream inputStream = new ByteArrayInputStream(inputStr.getBytes(StandardCharsets.UTF_8));
+                    InputStreamResource resource = new InputStreamResource(inputStream);
+                    br.close();
+
+                    return ResponseEntity.ok()
+                            .headers(responseHeaders)
+                            .contentLength(inputStream.available())
+                            .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                            .body(resource);
                 }
+
+            } else {
+                errorMessage = "Error in anonymization.py command";
+                logger.error(errorMessage);
+                throw new ResponseStatusException(
+                        HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
             }
 
-        } catch (IOException e) {
+        } catch (IOException | InterruptedException e) {
             errorMessage = e.getMessage();
             logger.error(errorMessage);
             throw new ResponseStatusException(
                     HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
-        }
-
-        if (csvDate != null) {
-            UUID uuid = UUID.randomUUID();
-            fileName = "dataset-" + uuid + "-" + csvDate + ".csv";
-
-            //process anonymization
-
-
-            long dataPoints;
-            try {
-                FileUploadUtil.saveFile(fileName, file, uploadPath);
-            } catch (IOException e) {
-                errorMessage = e.getMessage();
-                logger.error(errorMessage);
-                throw new ResponseStatusException(
-                        HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
-            }
-
-            File fi = new File(path + "/" + fileName);
-            fi.setReadable(true, false);
-            fi.setWritable(true, false);
-
-            Path filePath = Paths.get(uploadPath + "/" + fileName);
-            try (Stream<String> stream = Files.lines(filePath)) {
-                dataPoints = stream.count() - 1;
-                Dataset d = new Dataset();
-                d.setId(uuid);
-                d.setDatasetDefinition(ds);
-                d.setStartDate(Date.valueOf(csvDate));
-                d.setEndDate(Date.valueOf(csvDate));
-                d.setResolution(dto.getResolution());
-                d.setK(dto.getK());
-                d.setDataPoints(dataPoints);
-
-                datasetBusiness.save(d);
-
-                br = new BufferedReader(
-                        new InputStreamReader(new FileSystemResource("/data/mobility/" + ds.getId() + "/" + fileName).getInputStream()));
-
-                String lineDownload;
-                StringBuffer inputBuffer = new StringBuffer();
-                HttpHeaders responseHeaders = new HttpHeaders();
-
-                while ((lineDownload = br.readLine()) != null) {
-                    inputBuffer.append(lineDownload);
-                    inputBuffer.append('\n');
-                }
-                br.close();
-
-                String inputStr = inputBuffer.toString();
-
-                ContentDisposition contentDisposition = ContentDisposition.builder("inline")
-                        .filename(fi.getName())
-                        .build();
-                responseHeaders.setContentDisposition(contentDisposition);
-                InputStream is = new ByteArrayInputStream(inputStr.getBytes(StandardCharsets.UTF_8));
-                InputStreamResource resource = new InputStreamResource(is);
-                return ResponseEntity.ok()
-                        .headers(responseHeaders)
-                        .contentLength(is.available())
-                        .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                        .body(resource);
-
-            } catch (IOException e) {
-                errorMessage = e.getMessage();
-                logger.error(errorMessage);
-                throw new ResponseStatusException(
-                        HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
-            }
         }
 
         errorMessage = "An error occurred while processing your request";
@@ -638,16 +655,13 @@ public class MobilityController {
                                 }
                             }
 
-
                             int i = 0;
-
 
                             for (Map.Entry<Long, List<Integer>> entry : vIdMapFiltered.entrySet()) {
                                 if (Collections.indexOfSubList(entry.getValue(), locIdList) > -1) {
                                     i++;
                                 }
                             }
-
 
                             response.put("count", i);
                             response.put("riskLevel", getRiskLevel(i));
@@ -767,18 +781,17 @@ public class MobilityController {
         }
     }
 
-    //TODO for client use
     @GetMapping("/mobility/audit")
     public ResponseEntity<Map<String, Object>> audit(@RequestPart MultipartFile file,
                                                      @RequestPart String k) {
-        Map<String, Object> response = new HashMap<>();
-        String errorMessage;
 
+        String errorMessage;
+        Map<String, Object> response = new HashMap<>();
         if (file.isEmpty()) {
             errorMessage = "File is required";
             logger.error(errorMessage);
-            response.put("error", errorMessage);
-            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, errorMessage);
         }
         if (!Objects.requireNonNull(file.getOriginalFilename()).endsWith(".csv")) {
             errorMessage = "Please upload a csv file. You provided " + file.getOriginalFilename();
@@ -797,9 +810,46 @@ public class MobilityController {
         if (!isNumeric(k) || Integer.parseInt(k) < 2) {
             errorMessage = "k must be a number between 2 - dataset size. You provided " + k;
             logger.error(errorMessage);
-            response.put("error", errorMessage);
-            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, errorMessage);
         }
+//
+//        try {
+//            byte[] encoded = file.getBytes();
+//            String content = new String(encoded, StandardCharsets.UTF_8);
+//            ProcessBuilder processBuilder = new ProcessBuilder("python3", "/opt/utils/audit.py",
+//                    "--input", content , "--k", k);
+//            processBuilder.redirectErrorStream(true);
+//
+//            Process process = processBuilder.start();
+//            BufferedReader br = new BufferedReader(new InputStreamReader(process.getInputStream()));
+//            int exitVal = process.waitFor();
+//            StringBuilder out = new StringBuilder();
+//            String line;
+//            if (exitVal == 0) {
+//                while ((line = br.readLine()) != null) {
+//                    out.append(line);
+//                }
+//
+//                ObjectMapper mapper = new ObjectMapper();
+//                JsonNode node = mapper.readValue(mapper.writeValueAsString(out).replaceAll("\"", "").replaceAll("'", "\""), JsonNode.class);
+//
+//                response.put("data", node.get("data") );
+//                response.put("minK", node.get("minK") );
+//            return new ResponseEntity<>(response, HttpStatus.OK);
+//            } else {
+//                errorMessage = "Error in audit.py command";
+//                logger.error(errorMessage);
+//                throw new ResponseStatusException(
+//                        HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
+//            }
+//
+//        } catch (IOException | InterruptedException e) {
+//            errorMessage = e.getMessage();
+//            logger.error(errorMessage);
+//            throw new ResponseStatusException(
+//                    HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
+//        }
 
         try {
             Reader reader = new InputStreamReader(file.getInputStream());
