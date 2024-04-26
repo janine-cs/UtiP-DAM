@@ -10,7 +10,6 @@ import com.opencsv.CSVReaderBuilder;
 import com.opencsv.RFC4180Parser;
 import com.opencsv.RFC4180ParserBuilder;
 import com.opencsv.exceptions.CsvValidationException;
-import com.utipdam.internal.FileUploadUtil;
 import com.utipdam.internal.model.FileUploadResponse;
 import com.utipdam.internal.model.Dataset;
 import com.utipdam.internal.model.VisitorTracks;
@@ -26,17 +25,17 @@ import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestTemplate;
-import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.*;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -58,7 +57,7 @@ public class MobilityController {
     @PostMapping("/mobility/upload")
     public ResponseEntity<Map<String, Object>> uploadInternal(@RequestPart String datasetDefinition,
                                                               @RequestPart String k,
-                                                              @RequestPart MultipartFile file) {
+                                                              @RequestPart String file) {
 
         Map<String, Object> response = new HashMap<>();
         String errorMessage;
@@ -69,8 +68,8 @@ public class MobilityController {
             return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
         }
 
-        if (!Objects.requireNonNull(file.getOriginalFilename()).endsWith(".csv")) {
-            errorMessage = "Please upload a csv file. You provided " + file.getOriginalFilename();
+        if (!Objects.requireNonNull(file.endsWith(".csv"))) {
+            errorMessage = "Please upload a csv file. You provided " + file;
             logger.error(errorMessage);
             response.put("error", errorMessage);
             return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
@@ -91,39 +90,6 @@ public class MobilityController {
             return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
         }
 
-        Path uploadPath = Paths.get(path);
-        String fileName;
-        BufferedReader br;
-        String csvDate = null;
-
-        try {
-            String line;
-            InputStream is = file.getInputStream();
-            br = new BufferedReader(new InputStreamReader(is));
-            line = br.readLine();
-            String[] nextRecord;
-            if (line != null) {
-                nextRecord = line.split(",");
-                int dateIndex = Arrays.asList(nextRecord).indexOf(START_TIME);
-                if (dateIndex > 0 && (line = br.readLine()) != null) {
-                    csvDate = line.split(",")[dateIndex];
-                    csvDate = csvDate.split(" ")[0];
-                    if (!GenericValidator.isDate(csvDate, DATE_FORMAT, true)) {
-                        errorMessage = "start_time must be yyyy-MM-dd HH:mm:ss format";
-                        logger.error(errorMessage);
-                        response.put("error", errorMessage);
-                        return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-                    }
-                }
-            }
-            br.close();
-        } catch (IOException e) {
-            errorMessage = e.getMessage();
-            logger.error(errorMessage);
-            response.put("error", errorMessage);
-            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
-        }
-
         RestTemplate restTemplate = new RestTemplate();
 
         HttpHeaders headers = new HttpHeaders();
@@ -134,77 +100,131 @@ public class MobilityController {
         //logger.info(requestJson);
         headers.setContentType(MediaType.APPLICATION_JSON);
 
-        if (csvDate != null) {
-            UUID uuid = UUID.randomUUID();
-            fileName = "dataset-" + uuid + "-" + csvDate + ".csv";
+        //anonymization process
+        String fileName;
+        String csvDate = null;
 
-            //process anonymization
-            long dataPoints;
-            HttpEntity<String> entity;
-            try {
-                FileUploadUtil.saveFile(fileName, file, uploadPath);
+        UUID uuid = UUID.randomUUID();
+        fileName = "dataset-" + uuid + "-.csv";
 
-                File fi = new File(path + "/" + fileName);
-                fi.setReadable(true, false);
-                fi.setWritable(true, false);
-            } catch (IOException e) {
-                errorMessage = e.getMessage();
-                logger.error(errorMessage);
-                response.put("error", errorMessage);
-                return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
-            }
-            Path filePath = Paths.get(uploadPath + "/" + fileName);
-            try (Stream<String> stream = Files.lines(filePath)) {
-                dataPoints = stream.count() - 1;
-                JSONObject request = new JSONObject();
-                request.put("id", uuid);
-                request.put("datasetDefinitionId", datasetDefinition);
-                request.put("startDate", csvDate);
-                request.put("endDate", csvDate);
-                request.put("resolution", RESOLUTION);
-                request.put("k", k);
-                request.put("dataPoints", dataPoints);
-                entity = new HttpEntity<>(request.toString(), headers);
-            } catch (JSONException | IOException e) {
-                errorMessage = e.getMessage();
-                logger.error(errorMessage);
-                response.put("error", errorMessage);
-                return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
-            }
+        String strPath = path + "/" + fileName;
+        File fi = new File(strPath);
+        fi.setReadable(true, false);
+        fi.setWritable(true, false);
 
-            try {
-                long size = Files.size(filePath);
+        try {
+            ProcessBuilder processBuilder = new ProcessBuilder("python3", "/opt/utils/anonymization-v1.py",
+                    "--input", file , "--k", k);
+            processBuilder.redirectErrorStream(true);
+            processBuilder.redirectOutput(ProcessBuilder.Redirect.appendTo(fi));
+            Process process = processBuilder.start();
 
-                JsonNode node = restTemplate.exchange(uri + "/dataset",
-                        HttpMethod.POST, entity, JsonNode.class).getBody();
+            int exitVal = process.waitFor();
+            logger.info("exitVal " + exitVal);
+            if (exitVal == 0) {
+                String line;
+                long i = 0;
+                int dateIndex = -1;
+                BufferedReader br = new BufferedReader(new FileReader(strPath));
+                StringBuffer inputBuffer = new StringBuffer();
 
-                if (node != null) {
-                    JsonFactory jsonFactory = new JsonFactory();
-                    ObjectMapper objectMapper = new ObjectMapper(jsonFactory);
-                    JsonNode nodeResp = objectMapper.readValue(node.get("data").toString(), JsonNode.class);
-                    Dataset dataset = new ObjectMapper().readValue(nodeResp.toString(), new TypeReference<>() {
-                    });
-                    if (dataset != null) {
-                        FileUploadResponse fileUploadResponse = new FileUploadResponse();
-                        fileUploadResponse.setDatasetDefinitionId(UUID.fromString(datasetDefinition));
-                        fileUploadResponse.setDatasetId(dataset.getId());
-                        fileUploadResponse.setFileName(fileName);
-                        fileUploadResponse.setSize(size);
-                        response.put("data", fileUploadResponse);
-                        return new ResponseEntity<>(response, HttpStatus.OK);
+                while ((line = br.readLine()) != null) {
+                    if (i == 0 || dateIndex < 0) {
+                        if (!line.contains("site")){
+                            continue;
+                        }
+                        String[] nextRecord = line.split(",");
+                        dateIndex = Arrays.asList(nextRecord).indexOf(START_TIME);
+                        if (dateIndex < 0) {
+                            dateIndex = Arrays.asList(nextRecord).indexOf("start_time");
+                        }
+
                     }
+
+                    inputBuffer.append(line);
+                    inputBuffer.append('\n');
+
+                    if (dateIndex > 0 && i == 1) {
+                        csvDate = line.split(",")[dateIndex];
+                        csvDate = csvDate.split(" ")[0];
+                        if (!GenericValidator.isDate(csvDate, DATE_FORMAT, true)) {
+                            errorMessage = "first_time_seen must be yyyy-MM-dd HH:mm:ss format";
+                            logger.error(errorMessage);
+                            throw new ResponseStatusException(
+                                    HttpStatus.BAD_REQUEST, errorMessage);
+                        }
+                    }
+                    i++;
+                }
+                br.close();
+                fileName = "dataset-" + uuid + "-" + csvDate + ".csv";
+                String strPathNew = path + "/" + fileName;
+                Path oldPath = Paths.get(strPath);
+                Path newPath = Paths.get(strPathNew);
+                Files.move(oldPath, newPath, StandardCopyOption.REPLACE_EXISTING);
+
+                if (csvDate != null) {
+                    long dataPoints = i- 1;
+                    logger.info("dataPoints:" + dataPoints);
+                    JSONObject request = new JSONObject();
+                    request.put("id", uuid);
+                    request.put("datasetDefinitionId", datasetDefinition);
+                    request.put("startDate", csvDate);
+                    request.put("endDate", csvDate);
+                    request.put("resolution", RESOLUTION);
+                    request.put("k", k);
+                    request.put("dataPoints", dataPoints);
+                    HttpEntity<String> entity = new HttpEntity<>(request.toString(), headers);
+                    try {
+                        long size = Files.size(newPath);
+
+                        JsonNode node = restTemplate.exchange(uri + "/dataset",
+                                HttpMethod.POST, entity, JsonNode.class).getBody();
+
+                        if (node != null) {
+                            JsonFactory jsonFactory = new JsonFactory();
+                            ObjectMapper objectMapper = new ObjectMapper(jsonFactory);
+                            JsonNode nodeResp = objectMapper.readValue(node.get("data").toString(), JsonNode.class);
+                            Dataset dataset = new ObjectMapper().readValue(nodeResp.toString(), new TypeReference<>() {
+                            });
+                            if (dataset != null) {
+                                FileUploadResponse fileUploadResponse = new FileUploadResponse();
+                                fileUploadResponse.setDatasetDefinitionId(UUID.fromString(datasetDefinition));
+                                fileUploadResponse.setDatasetId(dataset.getId());
+                                fileUploadResponse.setFileName(fileName);
+                                fileUploadResponse.setSize(size);
+                                response.put("data", fileUploadResponse);
+
+                                return new ResponseEntity<>(response, HttpStatus.OK);
+                            }
+                        }
+
+
+                    } catch (HttpClientErrorException | IOException e) {
+                        File f = new File(strPathNew);
+                        if (f.delete()) {
+                            logger.info(f + " file deleted");
+                        }
+                        errorMessage = e.getMessage();
+                        logger.error(errorMessage);
+                        response.put("error", errorMessage);
+                        return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+                    }
+
                 }
 
-            } catch (HttpClientErrorException | IOException e) {
-                File f = new File(uploadPath + "/" + fileName);
-                if (f.delete()) {
-                    logger.info(f + " file deleted");
-                }
-                errorMessage = e.getMessage();
+            } else {
+                errorMessage = "Error in anonymization.py command";
                 logger.error(errorMessage);
                 response.put("error", errorMessage);
                 return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
             }
+
+        } catch (IOException | InterruptedException | JSONException e) {
+            errorMessage = e.getMessage();
+            logger.error(errorMessage);
+            response.put("error", errorMessage);
+            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
         }
 
         return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
