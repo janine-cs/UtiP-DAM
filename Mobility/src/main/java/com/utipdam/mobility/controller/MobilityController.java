@@ -10,6 +10,7 @@ import com.opencsv.CSVReaderBuilder;
 import com.opencsv.RFC4180Parser;
 import com.opencsv.RFC4180ParserBuilder;
 import com.opencsv.exceptions.CsvValidationException;
+import com.utipdam.mobility.FileUploadUtil;
 import com.utipdam.mobility.business.DatasetDefinitionBusiness;
 import com.utipdam.mobility.business.DatasetBusiness;
 import com.utipdam.mobility.business.OrderBusiness;
@@ -20,7 +21,6 @@ import com.utipdam.mobility.model.entity.*;
 import com.utipdam.mobility.model.repository.RoleRepository;
 import com.utipdam.mobility.model.repository.UserRepository;
 import org.antlr.v4.runtime.misc.IntegerList;
-import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.filefilter.WildcardFileFilter;
 import org.apache.commons.validator.GenericValidator;
 import org.slf4j.Logger;
@@ -44,6 +44,8 @@ import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.security.KeyManagementException;
 import java.security.KeyStoreException;
@@ -87,7 +89,6 @@ public class MobilityController {
     @Autowired
     AuthenticationManager authenticationManager;
 
-
     @PostMapping(value = {"/mobility/upload", "/mobility/anonymize"})
     public ResponseEntity<Resource> anonymizeOnly(@RequestPart MultipartFile file,
                                                   @RequestPart String k) {
@@ -124,23 +125,33 @@ public class MobilityController {
         StringBuffer inputBuffer = new StringBuffer();
 
         //anonymization process
-        try {
-            byte[] encoded = file.getBytes();
-            String content = new String(encoded, StandardCharsets.UTF_8);
-            ProcessBuilder processBuilder = new ProcessBuilder("python3","/opt/utils/anonymization.py","--input",content,"--k",k);
-            processBuilder.redirectErrorStream(true);
+        UUID uuid = UUID.randomUUID();
+        String fileName = "upload-" + uuid + ".csv";
+        String path = "/tmp";
+        String strPath = path + "/" + fileName;
 
+        try {
+            FileUploadUtil.saveFile(fileName, file, Paths.get(path));
+            fileName = "dataset-" + uuid + ".csv";
+            String strOutPath = path + "/" + fileName;
+
+            File fi = new File(strOutPath);
+
+            ProcessBuilder processBuilder = new ProcessBuilder("python3", "/opt/utils/anonymization-v1.py", "--input", strPath, "--k", k);
+            processBuilder.redirectErrorStream(true);
+            processBuilder.redirectOutput(ProcessBuilder.Redirect.appendTo(fi));
             Process process = processBuilder.start();
-            BufferedReader br = new BufferedReader(new InputStreamReader(process.getInputStream()));
+
             int exitVal = process.waitFor();
-            String line;
-            long i = 0;
             logger.info("exitVal " + exitVal);
             if (exitVal == 0) {
                 int dateIndex = -1;
+                String line;
+                BufferedReader br = new BufferedReader(new FileReader(strOutPath));
+                long i = 0;
                 while ((line = br.readLine()) != null) {
                     if (i == 0 || dateIndex < 0) {
-                        if (!line.contains("site")){
+                        if (!line.contains("site")) {
                             continue;
                         }
                         String[] nextRecord = line.split(",");
@@ -166,6 +177,7 @@ public class MobilityController {
                     }
                     i++;
                 }
+
                 logger.info("dataPoints:" + (i - 1));
                 if (csvDate != null) {
                     HttpHeaders responseHeaders = new HttpHeaders();
@@ -179,35 +191,37 @@ public class MobilityController {
                     InputStream inputStream = new ByteArrayInputStream(inputStr.getBytes(StandardCharsets.UTF_8));
                     InputStreamResource resource = new InputStreamResource(inputStream);
                     br.close();
-
+                    File f = new File(strPath);
+                    if (f.delete()) {
+                        logger.info(f + " file deleted");
+                    }
+                    File fOut = new File(strOutPath);
+                    if (fOut.delete()) {
+                        logger.info(fOut + " file deleted");
+                    }
                     return ResponseEntity.ok()
                             .headers(responseHeaders)
                             .contentLength(inputStream.available())
                             .contentType(MediaType.APPLICATION_OCTET_STREAM)
                             .body(resource);
 
-
                 } else {
-                    errorMessage = "An error occurred while processing your request";
+                    errorMessage = "Error in anonymization.py command";
                     logger.error(errorMessage);
                     throw new ResponseStatusException(
                             HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
                 }
-
-            } else {
-                errorMessage = "Error in anonymization.py command";
-                logger.error(errorMessage);
-                throw new ResponseStatusException(
-                        HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
             }
-
         } catch (IOException | InterruptedException e) {
             errorMessage = e.getMessage();
             logger.error(errorMessage);
             throw new ResponseStatusException(
                     HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
         }
-
+        errorMessage = "An error occurred while processing your request";
+        logger.error(errorMessage);
+        throw new ResponseStatusException(
+                HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
     }
 
     @GetMapping("/mobility/download")
@@ -250,7 +264,7 @@ public class MobilityController {
                         }
 
                     };
-                    ByteArrayOutputStream os =  new ByteArrayOutputStream(1024);
+                    ByteArrayOutputStream os = new ByteArrayOutputStream(1024);
                     incrementDownload(definitionObj.getId());
                     try {
                         streamResponse.writeTo(os);
@@ -267,7 +281,7 @@ public class MobilityController {
                     logger.info("downloading from internal server");
                     //download from internal archive server
                     RestTemplateClient restTemplate = new RestTemplateClient();
-                    if (df.get().getServer() == null){
+                    if (df.get().getServer() == null) {
                         logger.error("No internal server specified");
                         return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
                     }
@@ -293,7 +307,8 @@ public class MobilityController {
                                     .header(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, HttpHeaders.CONTENT_DISPOSITION)
                                     .header(HttpHeaders.CONTENT_DISPOSITION, "attachment;filename=datasets.zip")
                                     .contentType(MediaType.parseMediaType("application/zip")).body(inputStream);
-                        } catch (KeyStoreException | NoSuchAlgorithmException | KeyManagementException | IOException ex) {
+                        } catch (KeyStoreException | NoSuchAlgorithmException | KeyManagementException |
+                                 IOException ex) {
                             logger.error(ex.getMessage());
                             return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
                         }
@@ -306,12 +321,12 @@ public class MobilityController {
         return new ResponseEntity<>(HttpStatus.NO_CONTENT);
     }
 
-    private void incrementDownload(UUID datasetDefinitionId){
+    private void incrementDownload(UUID datasetDefinitionId) {
         DownloadsByDay downloadsByDay = orderBusiness.getByDatasetDefinitionIdAndDate(datasetDefinitionId, Date.valueOf(LocalDate.now()));
-        if (downloadsByDay == null){
+        if (downloadsByDay == null) {
             downloadsByDay = new DownloadsByDay(datasetDefinitionId, Date.valueOf(LocalDate.now()), 1);
             orderBusiness.saveDownloads(downloadsByDay);
-        }else{
+        } else {
             orderBusiness.incrementCount(downloadsByDay.getId());
         }
     }
@@ -427,29 +442,37 @@ public class MobilityController {
                     HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
         }
 
-        String fileName;
+
         String csvDate = null;
         StringBuffer inputBuffer = new StringBuffer();
 
         //anonymization process
+        UUID uuid = UUID.randomUUID();
+        String fileName = "upload-" + uuid + ".csv";
+        String strPath = path + "/" + fileName;
+
         try {
-            byte[] encoded = file.getBytes();
-            String content = new String(encoded, StandardCharsets.UTF_8);
-            ProcessBuilder processBuilder = new ProcessBuilder("python3", "/opt/utils/anonymization.py",
-                    "--input", content , "--k", String.valueOf(dto.getK()));
+            FileUploadUtil.saveFile(fileName, file, Paths.get(path));
+            fileName = "dataset-" + uuid + "-.csv";
+            String strOutPath = path + "/" + fileName;
+
+            File fi = new File(strOutPath);
+            ProcessBuilder processBuilder = new ProcessBuilder("python3", "/opt/utils/anonymization-v1.py",
+                    "--input", strPath, "--k", String.valueOf(dto.getK()));
             processBuilder.redirectErrorStream(true);
-
+            processBuilder.redirectOutput(ProcessBuilder.Redirect.appendTo(fi));
             Process process = processBuilder.start();
-            BufferedReader br = new BufferedReader(new InputStreamReader(process.getInputStream()));
-            int exitVal = process.waitFor();
-            String line;
-            long i = 0;
-            if (exitVal == 0) {
 
+            int exitVal = process.waitFor();
+            logger.info("exitVal " + exitVal);
+            if (exitVal == 0) {
                 int dateIndex = -1;
+                String line;
+                long i = 0;
+                BufferedReader br = new BufferedReader(new FileReader(strOutPath));
                 while ((line = br.readLine()) != null) {
                     if (i == 0 || dateIndex < 0) {
-                        if (!line.contains("site")){
+                        if (!line.contains("site")) {
                             continue;
                         }
                         String[] nextRecord = line.split(",");
@@ -478,15 +501,13 @@ public class MobilityController {
 
                 if (csvDate != null) {
                     String inputStr = inputBuffer.toString();
-
-                    UUID uuid = UUID.randomUUID();
                     fileName = "dataset-" + uuid + "-" + csvDate + ".csv";
-                    String strPath = path + "/" + fileName;
-                    File fi = new File(strPath);
-                    fi.setReadable(true, false);
-                    fi.setWritable(true, false);
+                    String strPathNew = path + "/" + fileName;
+                    Path oldPath = Paths.get(strOutPath);
+                    Path newPath = Paths.get(strPathNew);
+                    Files.move(oldPath, newPath, StandardCopyOption.REPLACE_EXISTING);
 
-                    long dataPoints = i- 1;
+                    long dataPoints = i - 1;
                     logger.info("dataPoints:" + dataPoints);
                     Dataset d = new Dataset();
 
@@ -500,15 +521,6 @@ public class MobilityController {
 
                     datasetBusiness.save(d);
 
-                    try {
-                        FileUtils.writeByteArrayToFile(fi, inputStr.getBytes(StandardCharsets.UTF_8));
-                    } catch (IOException e) {
-                        errorMessage = e.getMessage();
-                        logger.error(errorMessage);
-                        throw new ResponseStatusException(
-                                HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
-                    }
-
                     HttpHeaders responseHeaders = new HttpHeaders();
 
                     ContentDisposition contentDisposition = ContentDisposition.builder("inline")
@@ -518,7 +530,10 @@ public class MobilityController {
                     InputStream inputStream = new ByteArrayInputStream(inputStr.getBytes(StandardCharsets.UTF_8));
                     InputStreamResource resource = new InputStreamResource(inputStream);
                     br.close();
-
+                    File f = new File(strPath);
+                    if (f.delete()) {
+                        logger.info(f + " file deleted");
+                    }
                     return ResponseEntity.ok()
                             .headers(responseHeaders)
                             .contentLength(inputStream.available())
@@ -931,10 +946,10 @@ public class MobilityController {
 
             Map<IntegerList, Long> vMapResult = vIdMapFiltered.values().stream().filter(v -> !v.isEmpty()).collect(Collectors.groupingBy(IntegerList::new, Collectors.counting()));
 
-            if (vMapResult.entrySet().isEmpty()){
+            if (vMapResult.entrySet().isEmpty()) {
                 response.put("data", null);
                 response.put("minK", null);
-            }else{
+            } else {
                 Long min = Collections.min(vMapResult.values());
                 vMapResult = vMapResult.entrySet().stream().filter(v -> v.getValue() < Integer.parseInt(k)).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
                 response.put("data", vMapResult);
