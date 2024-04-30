@@ -59,14 +59,19 @@ import java.util.zip.ZipOutputStream;
 @RestController
 public class MobilityController {
     private static final Logger logger = LoggerFactory.getLogger(MobilityController.class);
-    private final String START_TIME_LONG = "first_time_seen";
-    private final String START_TIME_SHORT = "start_time";
+    private final String START_TIME = "first_time_seen";
     private final String DATE_FORMAT = "yyyy-MM-dd";
     private final Integer HIGH_RISK = 10;
     private final Integer LOW_RISK = 50;
 
     @Value("${utipdam.app.maxFileSize}")
     private long MAX_FILE_SIZE;
+
+    @Value("${utipdam.app.anonymization}")
+    private String ANONYMIZATION_VERSION;
+
+    @Value("${utipdam.app.audit}")
+    private String AUDIT_VERSION;
 
     @Autowired
     private DatasetDefinitionBusiness datasetDefinitionBusiness;
@@ -121,24 +126,7 @@ public class MobilityController {
                     HttpStatus.BAD_REQUEST, errorMessage);
         }
 
-        boolean longForm = true;
         try {
-            Reader reader = new InputStreamReader(file.getInputStream());
-            RFC4180Parser rfc4180Parser = new RFC4180ParserBuilder().build();
-            try (CSVReader csvReader = new CSVReaderBuilder(reader).withCSVParser(rfc4180Parser).build()) {
-                String[] nextRecord;
-
-                if ((nextRecord = csvReader.readNext()) != null) {
-                   longForm = Arrays.stream(nextRecord).count() > 15;
-                }
-                reader.close();
-            } catch (IOException | CsvValidationException e) {
-                errorMessage = e.getMessage();
-                logger.error(errorMessage);
-                throw new ResponseStatusException(
-                        HttpStatus.BAD_REQUEST, errorMessage);
-            }
-
             String csvDate = null;
             StringBuffer inputBuffer = new StringBuffer();
 
@@ -154,7 +142,8 @@ public class MobilityController {
             String strOutPath = path + "/" + fileName;
 
             File fi = new File(strOutPath);
-            String pyPath = longForm ? "/opt/utils/anonymization-v1.py" : "/opt/utils/anonymization-v1.1.py";
+            String pyPath = "/opt/utils/anonymization-v"+ANONYMIZATION_VERSION+".py";
+            logger.info("version " + ANONYMIZATION_VERSION);
             ProcessBuilder processBuilder = new ProcessBuilder("python3", pyPath, "--input", strPath, "--k", k);
             processBuilder.redirectErrorStream(true);
             processBuilder.redirectOutput(ProcessBuilder.Redirect.appendTo(fi));
@@ -169,11 +158,14 @@ public class MobilityController {
                 long i = 0;
                 while ((line = br.readLine()) != null) {
                     if (i == 0 || dateIndex < 0) {
-                        if (!line.contains("site")) {
+                        if (!line.contains("_id")) {
                             continue;
                         }
                         String[] nextRecord = line.split(",");
-                        dateIndex = Arrays.asList(nextRecord).indexOf(longForm ? START_TIME_LONG : START_TIME_SHORT);
+                        dateIndex = Arrays.asList(nextRecord).indexOf(START_TIME);
+                        if (dateIndex < 0) {
+                            dateIndex = Arrays.asList(nextRecord).indexOf("start_time");
+                        }
 
                     }
 
@@ -476,23 +468,8 @@ public class MobilityController {
                     HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
         }
 
-        boolean longForm = true;
-        try {
-            Reader reader = new InputStreamReader(file.getInputStream());
-            RFC4180Parser rfc4180Parser = new RFC4180ParserBuilder().build();
-            try (CSVReader csvReader = new CSVReaderBuilder(reader).withCSVParser(rfc4180Parser).build()) {
-                String[] nextRecord;
 
-                if ((nextRecord = csvReader.readNext()) != null) {
-                    longForm = Arrays.stream(nextRecord).count() > 15;
-                }
-                reader.close();
-            } catch (IOException | CsvValidationException e) {
-                errorMessage = e.getMessage();
-                logger.error(errorMessage);
-                throw new ResponseStatusException(
-                        HttpStatus.BAD_REQUEST, errorMessage);
-            }
+        try {
             String csvDate = null;
             StringBuffer inputBuffer = new StringBuffer();
 
@@ -506,7 +483,7 @@ public class MobilityController {
             String strOutPath = path + "/" + fileName;
 
             File fi = new File(strOutPath);
-            String pyPath = longForm ? "/opt/utils/anonymization-v1.py" : "/opt/utils/anonymization-v1.1.py";
+            String pyPath = "/opt/utils/anonymization-v"+ANONYMIZATION_VERSION+".py";
 
             ProcessBuilder processBuilder = new ProcessBuilder("python3", pyPath,
                     "--input", strPath, "--k", String.valueOf(dto.getK()));
@@ -523,11 +500,14 @@ public class MobilityController {
                 BufferedReader br = new BufferedReader(new FileReader(strOutPath));
                 while ((line = br.readLine()) != null) {
                     if (i == 0 || dateIndex < 0) {
-                        if (!line.contains("site")) {
+                        if (!line.contains("_id")) {
                             continue;
                         }
                         String[] nextRecord = line.split(",");
-                        dateIndex = Arrays.asList(nextRecord).indexOf(longForm ? START_TIME_LONG : START_TIME_SHORT);
+                        dateIndex = Arrays.asList(nextRecord).indexOf(START_TIME);
+                        if (dateIndex < 0) {
+                            dateIndex = Arrays.asList(nextRecord).indexOf("start_time");
+                        }
                     }
 
                     inputBuffer.append(line);
@@ -901,7 +881,7 @@ public class MobilityController {
         try {
             FileUploadUtil.saveFile(fileName, file, Paths.get(path));
 
-            ProcessBuilder processBuilder = new ProcessBuilder("python3", "/opt/utils/audit-v1.py", "--input", strPath, "--k", k);
+            ProcessBuilder processBuilder = new ProcessBuilder("python3", "/opt/utils/audit-v"+AUDIT_VERSION+".py", "--input", strPath, "--k", k);
             processBuilder.redirectErrorStream(true);
             Process process = processBuilder.start();
 
