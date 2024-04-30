@@ -48,6 +48,9 @@ public class MobilityController {
     @Value("${utipdam.app.internalApi}")
     private String uri;
 
+    @Value("${utipdam.app.anonymization}")
+    private String ANONYMIZATION_VERSION;
+
     private final String START_TIME = "first_time_seen"; //TODO
     private final String RESOLUTION = "daily";
     private final String DATE_FORMAT = "yyyy-MM-dd";
@@ -113,8 +116,9 @@ public class MobilityController {
         fi.setWritable(true, false);
 
         try {
-            ProcessBuilder processBuilder = new ProcessBuilder("python3", "/opt/utils/anonymization-v1.py",
-                    "--input", file , "--k", k);
+            String pyPath = "/opt/utils/anonymization-v"+ANONYMIZATION_VERSION+".py";
+            logger.info("version " + ANONYMIZATION_VERSION);
+            ProcessBuilder processBuilder = new ProcessBuilder("python3", pyPath, "--input", file, "--k", k);
             processBuilder.redirectErrorStream(true);
             processBuilder.redirectOutput(ProcessBuilder.Redirect.appendTo(fi));
             Process process = processBuilder.start();
