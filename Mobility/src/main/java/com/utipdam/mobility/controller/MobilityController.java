@@ -859,7 +859,7 @@ public class MobilityController {
         }
     }
 
-    @GetMapping("/mobility/audit")
+    @PostMapping("/mobility/audit")
     public ResponseEntity<Map<String, Object>> audit(@RequestPart MultipartFile file,
                                                      @RequestPart String k) {
 
