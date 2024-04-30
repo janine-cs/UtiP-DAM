@@ -20,7 +20,6 @@ import com.utipdam.mobility.model.*;
 import com.utipdam.mobility.model.entity.*;
 import com.utipdam.mobility.model.repository.RoleRepository;
 import com.utipdam.mobility.model.repository.UserRepository;
-import org.antlr.v4.runtime.misc.IntegerList;
 import org.apache.commons.io.filefilter.WildcardFileFilter;
 import org.apache.commons.validator.GenericValidator;
 import org.slf4j.Logger;
@@ -60,7 +59,8 @@ import java.util.zip.ZipOutputStream;
 @RestController
 public class MobilityController {
     private static final Logger logger = LoggerFactory.getLogger(MobilityController.class);
-    private final String START_TIME = "first_time_seen";
+    private final String START_TIME_LONG = "first_time_seen";
+    private final String START_TIME_SHORT = "start_time";
     private final String DATE_FORMAT = "yyyy-MM-dd";
     private final Integer HIGH_RISK = 10;
     private final Integer LOW_RISK = 50;
@@ -121,23 +121,41 @@ public class MobilityController {
                     HttpStatus.BAD_REQUEST, errorMessage);
         }
 
-        String csvDate = null;
-        StringBuffer inputBuffer = new StringBuffer();
-
-        //anonymization process
-        UUID uuid = UUID.randomUUID();
-        String fileName = "upload-" + uuid + ".csv";
-        String path = "/tmp";
-        String strPath = path + "/" + fileName;
-
+        boolean longForm = true;
         try {
+            Reader reader = new InputStreamReader(file.getInputStream());
+            RFC4180Parser rfc4180Parser = new RFC4180ParserBuilder().build();
+            try (CSVReader csvReader = new CSVReaderBuilder(reader).withCSVParser(rfc4180Parser).build()) {
+                String[] nextRecord;
+
+                if ((nextRecord = csvReader.readNext()) != null) {
+                   longForm = Arrays.stream(nextRecord).count() > 15;
+                }
+                reader.close();
+            } catch (IOException | CsvValidationException e) {
+                errorMessage = e.getMessage();
+                logger.error(errorMessage);
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST, errorMessage);
+            }
+
+            String csvDate = null;
+            StringBuffer inputBuffer = new StringBuffer();
+
+            //anonymization process
+            UUID uuid = UUID.randomUUID();
+            String fileName = "upload-" + uuid + ".csv";
+            String path = "/tmp";
+            String strPath = path + "/" + fileName;
+
+
             FileUploadUtil.saveFile(fileName, file, Paths.get(path));
             fileName = "dataset-" + uuid + ".csv";
             String strOutPath = path + "/" + fileName;
 
             File fi = new File(strOutPath);
-
-            ProcessBuilder processBuilder = new ProcessBuilder("python3", "/opt/utils/anonymization-v1.py", "--input", strPath, "--k", k);
+            String pyPath = longForm ? "/opt/utils/anonymization-v1.py" : "/opt/utils/anonymization-v1.1.py";
+            ProcessBuilder processBuilder = new ProcessBuilder("python3", pyPath, "--input", strPath, "--k", k);
             processBuilder.redirectErrorStream(true);
             processBuilder.redirectOutput(ProcessBuilder.Redirect.appendTo(fi));
             Process process = processBuilder.start();
@@ -155,10 +173,7 @@ public class MobilityController {
                             continue;
                         }
                         String[] nextRecord = line.split(",");
-                        dateIndex = Arrays.asList(nextRecord).indexOf(START_TIME);
-                        if (dateIndex < 0) {
-                            dateIndex = Arrays.asList(nextRecord).indexOf("start_time");
-                        }
+                        dateIndex = Arrays.asList(nextRecord).indexOf(longForm ? START_TIME_LONG : START_TIME_SHORT);
 
                     }
 
@@ -211,6 +226,29 @@ public class MobilityController {
                     throw new ResponseStatusException(
                             HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
                 }
+            }else{
+                InputStream inputStream = new FileInputStream(fi);
+                InputStreamResource resource = new InputStreamResource(inputStream);
+                HttpHeaders responseHeaders = new HttpHeaders();
+
+                ContentDisposition contentDisposition = ContentDisposition.builder("inline")
+                        .filename("error.txt")
+                        .build();
+                responseHeaders.setContentDisposition(contentDisposition);
+                File f = new File(strPath);
+                if (f.delete()) {
+                    logger.info(f + " file deleted");
+                }
+                File fOut = new File(strOutPath);
+                if (fOut.delete()) {
+                    logger.info(fOut + " file deleted");
+                }
+                return ResponseEntity.internalServerError()
+                        .headers(responseHeaders)
+                        .contentLength(inputStream.available())
+                        .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                        .body(resource);
+
             }
         } catch (IOException | InterruptedException e) {
             errorMessage = e.getMessage();
@@ -218,10 +256,6 @@ public class MobilityController {
             throw new ResponseStatusException(
                     HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
         }
-        errorMessage = "An error occurred while processing your request";
-        logger.error(errorMessage);
-        throw new ResponseStatusException(
-                HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
     }
 
     @GetMapping("/mobility/download")
@@ -442,22 +476,39 @@ public class MobilityController {
                     HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
         }
 
-
-        String csvDate = null;
-        StringBuffer inputBuffer = new StringBuffer();
-
-        //anonymization process
-        UUID uuid = UUID.randomUUID();
-        String fileName = "upload-" + uuid + ".csv";
-        String strPath = path + "/" + fileName;
-
+        boolean longForm = true;
         try {
+            Reader reader = new InputStreamReader(file.getInputStream());
+            RFC4180Parser rfc4180Parser = new RFC4180ParserBuilder().build();
+            try (CSVReader csvReader = new CSVReaderBuilder(reader).withCSVParser(rfc4180Parser).build()) {
+                String[] nextRecord;
+
+                if ((nextRecord = csvReader.readNext()) != null) {
+                    longForm = Arrays.stream(nextRecord).count() > 15;
+                }
+                reader.close();
+            } catch (IOException | CsvValidationException e) {
+                errorMessage = e.getMessage();
+                logger.error(errorMessage);
+                throw new ResponseStatusException(
+                        HttpStatus.BAD_REQUEST, errorMessage);
+            }
+            String csvDate = null;
+            StringBuffer inputBuffer = new StringBuffer();
+
+            //anonymization process
+            UUID uuid = UUID.randomUUID();
+            String fileName = "upload-" + uuid + ".csv";
+            String strPath = path + "/" + fileName;
+
             FileUploadUtil.saveFile(fileName, file, Paths.get(path));
             fileName = "dataset-" + uuid + "-.csv";
             String strOutPath = path + "/" + fileName;
 
             File fi = new File(strOutPath);
-            ProcessBuilder processBuilder = new ProcessBuilder("python3", "/opt/utils/anonymization-v1.py",
+            String pyPath = longForm ? "/opt/utils/anonymization-v1.py" : "/opt/utils/anonymization-v1.1.py";
+
+            ProcessBuilder processBuilder = new ProcessBuilder("python3", pyPath,
                     "--input", strPath, "--k", String.valueOf(dto.getK()));
             processBuilder.redirectErrorStream(true);
             processBuilder.redirectOutput(ProcessBuilder.Redirect.appendTo(fi));
@@ -476,11 +527,7 @@ public class MobilityController {
                             continue;
                         }
                         String[] nextRecord = line.split(",");
-                        dateIndex = Arrays.asList(nextRecord).indexOf(START_TIME);
-                        if (dateIndex < 0) {
-                            dateIndex = Arrays.asList(nextRecord).indexOf("start_time");
-                        }
-
+                        dateIndex = Arrays.asList(nextRecord).indexOf(longForm ? START_TIME_LONG : START_TIME_SHORT);
                     }
 
                     inputBuffer.append(line);
@@ -541,11 +588,27 @@ public class MobilityController {
                             .body(resource);
                 }
 
-            } else {
-                errorMessage = "Error in anonymization.py command";
-                logger.error(errorMessage);
-                throw new ResponseStatusException(
-                        HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
+            }else{
+                InputStream inputStream = new FileInputStream(fi);
+                InputStreamResource resource = new InputStreamResource(inputStream);
+                HttpHeaders responseHeaders = new HttpHeaders();
+
+                ContentDisposition contentDisposition = ContentDisposition.builder("inline")
+                        .filename("error.txt")
+                        .build();
+
+                responseHeaders.setContentDisposition(contentDisposition);
+
+                File f = new File(strPath);
+                if (f.delete()) {
+                    logger.info(f + " file deleted");
+                }
+                return ResponseEntity.internalServerError()
+                        .headers(responseHeaders)
+                        .contentLength(inputStream.available())
+                        .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                        .body(resource);
+
             }
 
         } catch (IOException | InterruptedException e) {
@@ -805,163 +868,83 @@ public class MobilityController {
         if (file.isEmpty()) {
             errorMessage = "File is required";
             logger.error(errorMessage);
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST, errorMessage);
+            response.put("error", errorMessage );
+            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
         }
         if (!Objects.requireNonNull(file.getOriginalFilename()).endsWith(".csv")) {
             errorMessage = "Please upload a csv file. You provided " + file.getOriginalFilename();
             logger.error(errorMessage);
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST, errorMessage);
+            response.put("error", errorMessage );
+            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
         }
 
-//        if (file.getSize() > MAX_FILE_SIZE) {
-//            errorMessage = "Exceeded max file size " + MAX_FILE_SIZE;
-//            logger.error(errorMessage);
-//            throw new ResponseStatusException(
-//                    HttpStatus.BAD_REQUEST, errorMessage);
-//        }
+    // if (file.getSize() > MAX_FILE_SIZE) {
+    // errorMessage = "Exceeded max file size " + MAX_FILE_SIZE;
+    // logger.error(errorMessage);
+    // throw new ResponseStatusException(
+    // HttpStatus.BAD_REQUEST, errorMessage);
+    // }
 
         if (!isNumeric(k) || Integer.parseInt(k) < 2) {
             errorMessage = "k must be a number between 2 - dataset size. You provided " + k;
             logger.error(errorMessage);
-            throw new ResponseStatusException(
-                    HttpStatus.BAD_REQUEST, errorMessage);
+            response.put("error", errorMessage );
+            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
         }
-//
-//        try {
-//            byte[] encoded = file.getBytes();
-//            String content = new String(encoded, StandardCharsets.UTF_8);
-//            ProcessBuilder processBuilder = new ProcessBuilder("python3", "/opt/utils/audit.py",
-//                    "--input", content , "--k", k);
-//            processBuilder.redirectErrorStream(true);
-//
-//            Process process = processBuilder.start();
-//            BufferedReader br = new BufferedReader(new InputStreamReader(process.getInputStream()));
-//            int exitVal = process.waitFor();
-//            StringBuilder out = new StringBuilder();
-//            String line;
-//            if (exitVal == 0) {
-//                while ((line = br.readLine()) != null) {
-//                    out.append(line);
-//                }
-//
-//                ObjectMapper mapper = new ObjectMapper();
-//                JsonNode node = mapper.readValue(mapper.writeValueAsString(out).replaceAll("\"", "").replaceAll("'", "\""), JsonNode.class);
-//
-//                response.put("data", node.get("data") );
-//                response.put("minK", node.get("minK") );
-//            return new ResponseEntity<>(response, HttpStatus.OK);
-//            } else {
-//                errorMessage = "Error in audit.py command";
-//                logger.error(errorMessage);
-//                throw new ResponseStatusException(
-//                        HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
-//            }
-//
-//        } catch (IOException | InterruptedException e) {
-//            errorMessage = e.getMessage();
-//            logger.error(errorMessage);
-//            throw new ResponseStatusException(
-//                    HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
-//        }
+
+        UUID uuid = UUID.randomUUID();
+        String fileName = "upload-" + uuid + ".csv";
+        String path = "/tmp";
+        String strPath = path + "/" + fileName;
+
 
         try {
-            Reader reader = new InputStreamReader(file.getInputStream());
-            List<VisitorTracks> visitorTracks = new ArrayList<>();
-            RFC4180Parser rfc4180Parser = new RFC4180ParserBuilder().build();
-            try (CSVReader csvReader = new CSVReaderBuilder(reader).withSkipLines(1).withCSVParser(rfc4180Parser).build()) {
-                String[] nextRecord;
+            FileUploadUtil.saveFile(fileName, file, Paths.get(path));
 
-                while ((nextRecord = csvReader.readNext()) != null) {
-                    VisitorTracks visitorTrack = createVisitorTrack(nextRecord);
-                    if (visitorTrack != null) {
-                        visitorTracks.add(visitorTrack);
-                    }
+            ProcessBuilder processBuilder = new ProcessBuilder("python3", "/opt/utils/audit-v1.py", "--input", strPath, "--k", k);
+            processBuilder.redirectErrorStream(true);
+            Process process = processBuilder.start();
+
+            int exitVal = process.waitFor();
+            logger.info("exitVal " + exitVal);
+            String line;
+            StringBuilder out = new StringBuilder();
+            BufferedReader br = new BufferedReader(new InputStreamReader(process.getInputStream()));
+            if (exitVal == 0) {
+                while ((line = br.readLine()) != null) {
+                    out.append(line);
                 }
-            } catch (IOException | CsvValidationException e) {
-                errorMessage = e.getMessage();
-                logger.error(errorMessage);
-                response.put("error", errorMessage);
-                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-            }
-            visitorTracks.sort(Comparator.comparing(VisitorTracks::getVisitorId)
-                    .thenComparing(VisitorTracks::getFirstTimeSeen));
-            Map<Long, List<Integer>> vIdMap = visitorTracks.stream().filter(p -> p.getRegionId() > 0)
-                    .collect(Collectors.groupingBy(
-                            VisitorTracks::getVisitorId,
-                            Collectors.mapping(VisitorTracks::getRegionId, Collectors.toList())));
-            Map<Long, List<Integer>> vIdMapFiltered = new HashMap<>();
-
-            Iterator<Map.Entry<Long, List<Integer>>> iterator = vIdMap.entrySet().iterator();
-            Map.Entry<Long, List<Integer>> prev = null;
-
-            while (iterator.hasNext()) {
-                Map.Entry<Long, List<Integer>> next = iterator.next();
-
-                if (prev != null) {
-                    if (prev.getValue().size() > 1) {
-                        List<Integer> newList = new ArrayList<>();
-                        for (int i = 0; i < prev.getValue().size(); i++) {
-                            if ((i + 1) < prev.getValue().size()) {
-                                if (!Objects.equals(prev.getValue().get(i), prev.getValue().get(i + 1))) {
-                                    newList.add(prev.getValue().get(i));
-                                }
-                            } else {
-                                newList.add(prev.getValue().get(i));
-                            }
-
-                        }
-
-                        vIdMapFiltered.put(prev.getKey(), newList);
-                    } else {
-                        vIdMapFiltered.put(prev.getKey(), prev.getValue());
-                    }
+                br.close();
+                File f = new File(strPath);
+                if (f.delete()) {
+                    logger.info(f + " file deleted");
                 }
+                ObjectMapper mapper = new ObjectMapper();
+                JsonNode node = mapper.readValue(mapper.writeValueAsString(out).replaceAll("\"", "").replaceAll("'", "\""), JsonNode.class);
 
-                prev = next;
-
-            }
-
-            //last entry
-            if (prev != null) {
-                if (prev.getValue().size() > 1) {
-                    List<Integer> newList = new ArrayList<>();
-                    for (int i = 0; i < prev.getValue().size(); i++) {
-                        if ((i + 1) < prev.getValue().size()) {
-                            if (!Objects.equals(prev.getValue().get(i), prev.getValue().get(i + 1))) {
-                                newList.add(prev.getValue().get(i));
-                            }
-                        } else {
-                            newList.add(prev.getValue().get(i));
-                        }
-
-                    }
-
-                    vIdMapFiltered.put(prev.getKey(), newList);
-                } else {
-                    vIdMapFiltered.put(prev.getKey(), prev.getValue());
-                }
-            }
-
-            Map<IntegerList, Long> vMapResult = vIdMapFiltered.values().stream().filter(v -> !v.isEmpty()).collect(Collectors.groupingBy(IntegerList::new, Collectors.counting()));
-
-            if (vMapResult.entrySet().isEmpty()) {
-                response.put("data", null);
-                response.put("minK", null);
+                response.put("data", node.get("data") );
+                response.put("minK", node.get("minK") );
+                return new ResponseEntity<>(response, HttpStatus.OK);
             } else {
-                Long min = Collections.min(vMapResult.values());
-                vMapResult = vMapResult.entrySet().stream().filter(v -> v.getValue() < Integer.parseInt(k)).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
-                response.put("data", vMapResult);
-                response.put("minK", min);
+                File f = new File(strPath);
+                if (f.delete()) {
+                    logger.info(f + " file deleted");
+                }
+                errorMessage = "Error in audit.py command. Number of mobility points must be more than 2";
+                logger.error(errorMessage);
+                response.put("error", errorMessage );
+                return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
             }
 
-            return new ResponseEntity<>(response, HttpStatus.OK);
-        } catch (IOException e) {
+        } catch (IOException | InterruptedException e) {
+            File f = new File(strPath);
+            if (f.delete()) {
+                logger.info(f + " file deleted");
+            }
             errorMessage = e.getMessage();
             logger.error(errorMessage);
-            response.put("error", errorMessage);
-            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+            response.put("error", errorMessage );
+            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
