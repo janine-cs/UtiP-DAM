@@ -51,7 +51,7 @@ public class MobilityController {
     @Value("${utipdam.app.anonymization}")
     private String ANONYMIZATION_VERSION;
 
-    private final String START_TIME = "first_time_seen"; //TODO
+    private final String START_TIME = "start_time";
     private final String RESOLUTION = "daily";
     private final String DATE_FORMAT = "yyyy-MM-dd";
 
@@ -134,15 +134,11 @@ public class MobilityController {
 
                 while ((line = br.readLine()) != null) {
                     if (i == 0 || dateIndex < 0) {
-                        if (!line.contains("site")){
+                        if (!line.contains("_id")){
                             continue;
                         }
                         String[] nextRecord = line.split(",");
                         dateIndex = Arrays.asList(nextRecord).indexOf(START_TIME);
-                        if (dateIndex < 0) {
-                            dateIndex = Arrays.asList(nextRecord).indexOf("start_time");
-                        }
-
                     }
 
                     inputBuffer.append(line);
