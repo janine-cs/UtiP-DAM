@@ -1,4 +1,4 @@
-package com.utipdam.mobility.model;
+package com.utipdam.internal.model;
 
 import lombok.Data;
 

@@ -13,6 +13,7 @@ import com.opencsv.exceptions.CsvValidationException;
 import com.utipdam.internal.model.FileUploadResponse;
 import com.utipdam.internal.model.Dataset;
 import com.utipdam.internal.model.VisitorTracks;
+import com.utipdam.internal.model.VisitorTracksNew;
 import org.apache.commons.io.filefilter.WildcardFileFilter;
 import org.apache.commons.validator.GenericValidator;
 import org.json.JSONException;
@@ -54,6 +55,8 @@ public class MobilityController {
     private final String START_TIME = "start_time";
     private final String RESOLUTION = "daily";
     private final String DATE_FORMAT = "yyyy-MM-dd";
+
+    private final String[] NEW_CSV_FORMAT = {"dataset_id", "location_id", "anonymized_unique_id", "start_time", "end_time", "distance"};
 
     //internal server use. upload & anonymize
     //existing dataset
@@ -296,7 +299,6 @@ public class MobilityController {
                               @RequestParam String datasetId,
                               @RequestParam String locationIds) {
         String errorMessage;
-        List<VisitorTracks> visitorTracks = new ArrayList<>();
         RFC4180Parser rfc4180Parser = new RFC4180ParserBuilder().build();
         int[] arr = Arrays.stream(locationIds.substring(1, locationIds.length() - 1).split(","))
                 .map(String::trim).mapToInt(Integer::parseInt).toArray();
@@ -306,28 +308,50 @@ public class MobilityController {
         logger.info(datasetId);
         File[] files = file.listFiles((d, name) -> name.contains(datasetId));
         if (files != null && files.length > 0) {
+            List<VisitorTracks> visitorTracks = new ArrayList<>();
+            List<VisitorTracksNew> visitorTracksNew = new ArrayList<>();
+            boolean newFormat = false;
             try (CSVReader csvReader = new CSVReaderBuilder(new FileReader(files[0])).withSkipLines(1).withCSVParser(rfc4180Parser).build()) {
                 String[] nextRecord;
-
+                int i =0;
                 while ((nextRecord = csvReader.readNext()) != null) {
-                    VisitorTracks visitorTrack = createVisitorTrack(nextRecord);
-                    if (visitorTrack != null) {
-                        visitorTracks.add(visitorTrack);
+                    if (i == 0){
+                        newFormat = Arrays.stream(nextRecord).count() == Arrays.stream(NEW_CSV_FORMAT).count();
+                        logger.info("new format " + newFormat);
                     }
+                    if (newFormat) {
+                        VisitorTracksNew visitorTrackNew = createVisitorTrackNew(nextRecord);
+                        if (visitorTrackNew != null) {
+                            visitorTracksNew.add(visitorTrackNew);
+                        }
+                    } else {
+                        VisitorTracks visitorTrack = createVisitorTrack(nextRecord);
+                        if (visitorTrack != null) {
+                            visitorTracks.add(visitorTrack);
+                        }
+                    }
+                    i++;
                 }
             } catch (IOException | CsvValidationException e) {
                 errorMessage = e.getMessage();
                 logger.error(errorMessage);
                 return null;
             }
-
-            visitorTracks.sort(Comparator.comparing(VisitorTracks::getVisitorId)
-                    .thenComparing(VisitorTracks::getFirstTimeSeen));
-            Map<Long, List<Integer>> vIdMap = visitorTracks.stream().filter(p -> p.getRegionId() > 0)
-                    .collect(Collectors.groupingBy(
-                            VisitorTracks::getVisitorId,
-                            Collectors.mapping(VisitorTracks::getRegionId, Collectors.toList())));
-
+            Map<Long, List<Integer>> vIdMap;
+            if (newFormat) {
+                visitorTracksNew.sort(Comparator.comparing(VisitorTracksNew::getAnonymizedUniqueId)
+                        .thenComparing(VisitorTracksNew::getStartTime));
+                vIdMap = visitorTracksNew.stream().collect(Collectors.groupingBy(
+                        VisitorTracksNew::getAnonymizedUniqueId,
+                        Collectors.mapping(VisitorTracksNew::getLocationId, Collectors.toList())));
+            }else{
+                visitorTracks.sort(Comparator.comparing(VisitorTracks::getVisitorId)
+                        .thenComparing(VisitorTracks::getFirstTimeSeen));
+                vIdMap = visitorTracks.stream().filter(p -> p.getRegionId() > 0)
+                        .collect(Collectors.groupingBy(
+                                VisitorTracks::getVisitorId,
+                                Collectors.mapping(VisitorTracks::getRegionId, Collectors.toList())));
+            }
             Map<Long, List<Integer>> vIdMapFiltered = new HashMap<>();
 
             Iterator<Map.Entry<Long, List<Integer>>> iterator = vIdMap.entrySet().iterator();
@@ -391,6 +415,28 @@ public class MobilityController {
             return i;
         } else {
             logger.error("No matching dataset definition");
+            return null;
+        }
+    }
+
+    private static VisitorTracksNew createVisitorTrackNew(String[] metadata) {
+        int datasetId, locationId;
+        String startTime, endTime, distance;
+        long anonymizedUniqueId;
+        //dataset_id,location_id,anonymized_unique_id,start_time,end_time,distance
+        try {
+
+            datasetId = Integer.parseInt(metadata[0]);
+            locationId = Integer.parseInt(metadata[1]);
+            anonymizedUniqueId = Long.parseLong(metadata[2]);
+            startTime = metadata[3];
+            endTime = metadata[4];
+            distance = metadata[5];
+
+            return new VisitorTracksNew(datasetId, locationId, anonymizedUniqueId, startTime, endTime, distance);
+
+        } catch (Exception e) {
+            logger.error(e.getMessage());
             return null;
         }
     }

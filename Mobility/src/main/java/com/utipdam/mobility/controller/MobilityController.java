@@ -63,6 +63,7 @@ public class MobilityController {
     private final String DATE_FORMAT = "yyyy-MM-dd";
     private final Integer HIGH_RISK = 10;
     private final Integer LOW_RISK = 50;
+    private final String[] NEW_CSV_FORMAT = {"dataset_id", "location_id", "anonymized_unique_id", "start_time", "end_time", "distance"};
 
     @Value("${utipdam.app.maxFileSize}")
     private long MAX_FILE_SIZE;
@@ -142,7 +143,7 @@ public class MobilityController {
             String strOutPath = path + "/" + fileName;
 
             File fi = new File(strOutPath);
-            String pyPath = "/opt/utils/anonymization-v"+ANONYMIZATION_VERSION+".py";
+            String pyPath = "/opt/utils/anonymization-v" + ANONYMIZATION_VERSION + ".py";
             logger.info("version " + ANONYMIZATION_VERSION);
             ProcessBuilder processBuilder = new ProcessBuilder("python3", pyPath, "--input", strPath, "--k", k);
             processBuilder.redirectErrorStream(true);
@@ -218,7 +219,7 @@ public class MobilityController {
                     throw new ResponseStatusException(
                             HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
                 }
-            }else{
+            } else {
                 InputStream inputStream = new FileInputStream(fi);
                 InputStreamResource resource = new InputStreamResource(inputStream);
                 HttpHeaders responseHeaders = new HttpHeaders();
@@ -483,7 +484,7 @@ public class MobilityController {
             String strOutPath = path + "/" + fileName;
 
             File fi = new File(strOutPath);
-            String pyPath = "/opt/utils/anonymization-v"+ANONYMIZATION_VERSION+".py";
+            String pyPath = "/opt/utils/anonymization-v" + ANONYMIZATION_VERSION + ".py";
 
             ProcessBuilder processBuilder = new ProcessBuilder("python3", pyPath,
                     "--input", strPath, "--k", String.valueOf(dto.getK()));
@@ -568,7 +569,7 @@ public class MobilityController {
                             .body(resource);
                 }
 
-            }else{
+            } else {
                 InputStream inputStream = new FileInputStream(fi);
                 InputStreamResource resource = new InputStreamResource(inputStream);
                 HttpHeaders responseHeaders = new HttpHeaders();
@@ -631,22 +632,38 @@ public class MobilityController {
             Optional<DatasetDefinition> dd = datasetDefinitionBusiness.getById(dataset.getDatasetDefinition().getId());
             if (dd.isPresent()) {
                 DatasetDefinition datasetDef = dd.get();
-                List<VisitorTracks> visitorTracks = new ArrayList<>();
+
                 RFC4180Parser rfc4180Parser = new RFC4180ParserBuilder().build();
 
                 if (datasetDef.getInternal() == null || !datasetDef.getInternal()) {
                     File file = new File("/data/mobility/" + datasetDef.getId());
-                    File[] files = file.listFiles((d, name) -> name.contains(dataset.getId().toString()));
+                    File[] files = file.listFiles((d, name) -> name.contains(dataset.getId().toString())); //only get 1 record
                     if (files != null && files.length > 0) {
                         if (files[0].getName().contains(dataset.getId().toString())) {
+                            List<VisitorTracks> visitorTracks = new ArrayList<>();
+                            List<VisitorTracksNew> visitorTracksNew = new ArrayList<>();
+                            boolean newFormat = false;
                             try (CSVReader csvReader = new CSVReaderBuilder(new FileReader(files[0])).withSkipLines(1).withCSVParser(rfc4180Parser).build()) {
                                 String[] nextRecord;
-
+                                int i =0;
                                 while ((nextRecord = csvReader.readNext()) != null) {
-                                    VisitorTracks visitorTrack = createVisitorTrack(nextRecord);
-                                    if (visitorTrack != null) {
-                                        visitorTracks.add(visitorTrack);
+                                    if (i == 0){
+                                        newFormat = Arrays.stream(nextRecord).count() == Arrays.stream(NEW_CSV_FORMAT).count();
+                                        logger.info("new format " + newFormat);
                                     }
+
+                                    if (newFormat) {
+                                        VisitorTracksNew visitorTrackNew = createVisitorTrackNew(nextRecord);
+                                        if (visitorTrackNew != null) {
+                                            visitorTracksNew.add(visitorTrackNew);
+                                        }
+                                    } else {
+                                        VisitorTracks visitorTrack = createVisitorTrack(nextRecord);
+                                        if (visitorTrack != null) {
+                                            visitorTracks.add(visitorTrack);
+                                        }
+                                    }
+                                    i++;
                                 }
                             } catch (IOException | CsvValidationException e) {
                                 errorMessage = e.getMessage();
@@ -654,12 +671,21 @@ public class MobilityController {
                                 response.put("error", errorMessage);
                                 return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
                             }
-                            visitorTracks.sort(Comparator.comparing(VisitorTracks::getVisitorId)
-                                    .thenComparing(VisitorTracks::getFirstTimeSeen));
-                            Map<Long, List<Integer>> vIdMap = visitorTracks.stream().filter(p -> p.getRegionId() > 0)
-                                    .collect(Collectors.groupingBy(
-                                            VisitorTracks::getVisitorId,
-                                            Collectors.mapping(VisitorTracks::getRegionId, Collectors.toList())));
+                            Map<Long, List<Integer>> vIdMap;
+                            if (newFormat) {
+                                visitorTracksNew.sort(Comparator.comparing(VisitorTracksNew::getAnonymizedUniqueId)
+                                        .thenComparing(VisitorTracksNew::getStartTime));
+                                vIdMap = visitorTracksNew.stream().collect(Collectors.groupingBy(
+                                        VisitorTracksNew::getAnonymizedUniqueId,
+                                                Collectors.mapping(VisitorTracksNew::getLocationId, Collectors.toList())));
+                            }else{
+                                visitorTracks.sort(Comparator.comparing(VisitorTracks::getVisitorId)
+                                        .thenComparing(VisitorTracks::getFirstTimeSeen));
+                                vIdMap = visitorTracks.stream().filter(p -> p.getRegionId() > 0)
+                                        .collect(Collectors.groupingBy(
+                                                VisitorTracks::getVisitorId,
+                                                Collectors.mapping(VisitorTracks::getRegionId, Collectors.toList())));
+                            }
                             Map<Long, List<Integer>> vIdMapFiltered = new HashMap<>();
 
                             Iterator<Map.Entry<Long, List<Integer>>> iterator = vIdMap.entrySet().iterator();
@@ -679,7 +705,6 @@ public class MobilityController {
                                             } else {
                                                 newList.add(prev.getValue().get(i));
                                             }
-
                                         }
 
                                         vIdMapFiltered.put(prev.getKey(), newList);
@@ -742,7 +767,7 @@ public class MobilityController {
                                 .fromUriString(uri)
                                 .queryParam("datasetDefinitionId", datasetDef.getId())
                                 .queryParam("datasetId", datasetId)
-                                .queryParam("locationIds", Arrays.toString(locationIds))
+                                .queryParam("locationIds", Arrays.toString(locationIds).replaceAll(" ", ""))
                                 .build().toUriString();
                         logger.info(url);
                         try {
@@ -820,13 +845,14 @@ public class MobilityController {
 
     private static VisitorTracksNew createVisitorTrackNew(String[] metadata) {
         int datasetId, locationId;
-        String startTime, endTime, distance, anonymizedUniqueId;
+        String startTime, endTime, distance;
+        long anonymizedUniqueId;
         //dataset_id,location_id,anonymized_unique_id,start_time,end_time,distance
         try {
 
             datasetId = Integer.parseInt(metadata[0]);
             locationId = Integer.parseInt(metadata[1]);
-            anonymizedUniqueId = metadata[2];
+            anonymizedUniqueId = Long.parseLong(metadata[2]);
             startTime = metadata[3];
             endTime = metadata[4];
             distance = metadata[5];
@@ -848,27 +874,27 @@ public class MobilityController {
         if (file.isEmpty()) {
             errorMessage = "File is required";
             logger.error(errorMessage);
-            response.put("error", errorMessage );
+            response.put("error", errorMessage);
             return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
         }
         if (!Objects.requireNonNull(file.getOriginalFilename()).endsWith(".csv")) {
             errorMessage = "Please upload a csv file. You provided " + file.getOriginalFilename();
             logger.error(errorMessage);
-            response.put("error", errorMessage );
+            response.put("error", errorMessage);
             return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
         }
 
-    // if (file.getSize() > MAX_FILE_SIZE) {
-    // errorMessage = "Exceeded max file size " + MAX_FILE_SIZE;
-    // logger.error(errorMessage);
-    // throw new ResponseStatusException(
-    // HttpStatus.BAD_REQUEST, errorMessage);
-    // }
+        // if (file.getSize() > MAX_FILE_SIZE) {
+        // errorMessage = "Exceeded max file size " + MAX_FILE_SIZE;
+        // logger.error(errorMessage);
+        // throw new ResponseStatusException(
+        // HttpStatus.BAD_REQUEST, errorMessage);
+        // }
 
         if (!isNumeric(k) || Integer.parseInt(k) < 2) {
             errorMessage = "k must be a number between 2 - dataset size. You provided " + k;
             logger.error(errorMessage);
-            response.put("error", errorMessage );
+            response.put("error", errorMessage);
             return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
         }
 
@@ -881,7 +907,7 @@ public class MobilityController {
         try {
             FileUploadUtil.saveFile(fileName, file, Paths.get(path));
 
-            ProcessBuilder processBuilder = new ProcessBuilder("python3", "/opt/utils/audit-v"+AUDIT_VERSION+".py", "--input", strPath, "--k", k);
+            ProcessBuilder processBuilder = new ProcessBuilder("python3", "/opt/utils/audit-v" + AUDIT_VERSION + ".py", "--input", strPath, "--k", k);
             processBuilder.redirectErrorStream(true);
             Process process = processBuilder.start();
 
@@ -902,8 +928,8 @@ public class MobilityController {
                 ObjectMapper mapper = new ObjectMapper();
                 JsonNode node = mapper.readValue(mapper.writeValueAsString(out).replaceAll("\"", "").replaceAll("'", "\""), JsonNode.class);
 
-                response.put("data", node.get("data") );
-                response.put("minK", node.get("minK") );
+                response.put("data", node.get("data"));
+                response.put("minK", node.get("minK"));
                 return new ResponseEntity<>(response, HttpStatus.OK);
             } else {
                 File f = new File(strPath);
@@ -912,7 +938,7 @@ public class MobilityController {
                 }
                 errorMessage = "Error in audit.py command. Number of mobility points must be more than 2";
                 logger.error(errorMessage);
-                response.put("error", errorMessage );
+                response.put("error", errorMessage);
                 return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
             }
 
@@ -923,7 +949,7 @@ public class MobilityController {
             }
             errorMessage = e.getMessage();
             logger.error(errorMessage);
-            response.put("error", errorMessage );
+            response.put("error", errorMessage);
             return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
