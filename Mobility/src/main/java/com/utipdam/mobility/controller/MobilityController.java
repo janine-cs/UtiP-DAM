@@ -671,7 +671,7 @@ public class MobilityController {
                                 response.put("error", errorMessage);
                                 return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
                             }
-                            Map<Long, List<Integer>> vIdMap;
+                            Map<String, List<Integer>> vIdMap;
                             if (newFormat) {
                                 visitorTracksNew.sort(Comparator.comparing(VisitorTracksNew::getAnonymizedUniqueId)
                                         .thenComparing(VisitorTracksNew::getStartTime));
@@ -686,13 +686,13 @@ public class MobilityController {
                                                 VisitorTracks::getVisitorId,
                                                 Collectors.mapping(VisitorTracks::getRegionId, Collectors.toList())));
                             }
-                            Map<Long, List<Integer>> vIdMapFiltered = new HashMap<>();
+                            Map<String, List<Integer>> vIdMapFiltered = new HashMap<>();
 
-                            Iterator<Map.Entry<Long, List<Integer>>> iterator = vIdMap.entrySet().iterator();
-                            Map.Entry<Long, List<Integer>> prev = null;
+                            Iterator<Map.Entry<String, List<Integer>>> iterator = vIdMap.entrySet().iterator();
+                            Map.Entry<String, List<Integer>> prev = null;
 
                             while (iterator.hasNext()) {
-                                Map.Entry<Long, List<Integer>> next = iterator.next();
+                                Map.Entry<String, List<Integer>> next = iterator.next();
 
                                 if (prev != null) {
                                     if (prev.getValue().size() > 1) {
@@ -740,7 +740,7 @@ public class MobilityController {
 
                             int i = 0;
 
-                            for (Map.Entry<Long, List<Integer>> entry : vIdMapFiltered.entrySet()) {
+                            for (Map.Entry<String, List<Integer>> entry : vIdMapFiltered.entrySet()) {
                                 if (Collections.indexOfSubList(entry.getValue(), locIdList) > -1) {
                                     i++;
                                 }
@@ -821,14 +821,13 @@ public class MobilityController {
 
     private static VisitorTracks createVisitorTrack(String[] metadata) {
         int siteId, regionId, populationType, globalId;
-        long visitorId;
-        String beginTime, endTime;
+        String beginTime, endTime, visitorId;
         //site_id,region_id,visitor_id,device_id,device_type,population_type,global_id,first_time_seen,last_time_seen
         try {
 
             siteId = Integer.parseInt(metadata[0]);
             regionId = Integer.parseInt(metadata[1]);
-            visitorId = Long.parseLong(metadata[2]);
+            visitorId = metadata[2];
             populationType = Integer.parseInt(metadata[5]);
             globalId = Integer.parseInt(metadata[6]);
 
@@ -845,14 +844,13 @@ public class MobilityController {
 
     private static VisitorTracksNew createVisitorTrackNew(String[] metadata) {
         int datasetId, locationId;
-        String startTime, endTime, distance;
-        long anonymizedUniqueId;
+        String startTime, endTime, distance, anonymizedUniqueId;
         //dataset_id,location_id,anonymized_unique_id,start_time,end_time,distance
         try {
 
             datasetId = Integer.parseInt(metadata[0]);
             locationId = Integer.parseInt(metadata[1]);
-            anonymizedUniqueId = Long.parseLong(metadata[2]);
+            anonymizedUniqueId = metadata[2];
             startTime = metadata[3];
             endTime = metadata[4];
             distance = metadata[5];

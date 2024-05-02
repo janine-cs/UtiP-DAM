@@ -7,7 +7,7 @@ public class VisitorTracksNew {
     //dataset_id,location_id,anonymized_unique_id,start_time,end_time,distance
     private int datasetId;
     private int locationId;
-    private long anonymizedUniqueId;
+    private String anonymizedUniqueId;
     private String startTime;
     private String endTime;
     private String distance;
@@ -16,7 +16,7 @@ public class VisitorTracksNew {
 
     }
 
-    public VisitorTracksNew(int datasetId, int locationId, long anonymizedUniqueId,
+    public VisitorTracksNew(int datasetId, int locationId, String anonymizedUniqueId,
                             String startTime, String endTime, String distance){
 
         this.datasetId = datasetId;

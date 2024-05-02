@@ -6,7 +6,7 @@ import lombok.Data;
 public class VisitorTracks {
     private int siteId;
     private int regionId;
-    private long visitorId;
+    private String visitorId;
     private int populationType;
     private int globalId;
     private String firstTimeSeen;
@@ -16,7 +16,7 @@ public class VisitorTracks {
 
     }
 
-    public VisitorTracks(int siteId, int regionId, long visitorId,
+    public VisitorTracks(int siteId, int regionId, String visitorId,
                          int populationType, int globalId, String firstTimeSeen, String lastTimeSeen){
 
         this.siteId = siteId;
