@@ -1,5 +1,6 @@
 package com.utipdam.mobility.model.entity;
 
+import java.sql.Timestamp;
 import java.util.HashSet;
 import java.util.Set;
 
@@ -46,20 +47,30 @@ public class User {
     private Boolean active;
 
     @Column(name = "end_date")
-    private String endDate;
+    private Timestamp endDate;
 
 
 
     public User() {
     }
 
-    public User(String username, String email, String password, Boolean active, String endDate) {
+    public User(String username, String email, String password, Boolean active, Timestamp endDate) {
         this.username = username;
         this.email = email;
         this.password = password;
         this.active = active;
         this.endDate = endDate;
     }
+
+    public User(Long id, String username, String email, String password, Boolean active, Timestamp endDate) {
+        this.id = id;
+        this.username = username;
+        this.email = email;
+        this.password = password;
+        this.active = active;
+        this.endDate = endDate;
+    }
+
 
     // getters and setters
 }

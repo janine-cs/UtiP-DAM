@@ -1,16 +1,13 @@
 package com.utipdam.mobility.controller;
 
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
 
 import com.utipdam.mobility.JwtUtils;
-import com.utipdam.mobility.model.JwtResponse;
-import com.utipdam.mobility.model.LoginRequest;
-import com.utipdam.mobility.model.MessageResponse;
+import com.utipdam.mobility.config.AuthTokenFilter;
+import com.utipdam.mobility.exception.DefaultException;
+import com.utipdam.mobility.model.*;
 import com.utipdam.mobility.model.entity.Role;
-import com.utipdam.mobility.model.SignupRequest;
 import com.utipdam.mobility.model.entity.ERole;
 import com.utipdam.mobility.model.entity.User;
 import com.utipdam.mobility.model.repository.RoleRepository;
@@ -19,21 +16,18 @@ import com.utipdam.mobility.model.service.UserDetailsImpl;
 import jakarta.validation.Valid;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.web.bind.annotation.CrossOrigin;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 @CrossOrigin(origins = "*", maxAge = 3600)
 @RestController
-@RequestMapping("/auth")
 public class AuthController {
     @Autowired
     AuthenticationManager authenticationManager;
@@ -50,7 +44,7 @@ public class AuthController {
     @Autowired
     JwtUtils jwtUtils;
 
-    @PostMapping("/signin")
+    @PostMapping("/auth/signin")
     public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
 
         Authentication authentication = authenticationManager.authenticate(
@@ -71,7 +65,7 @@ public class AuthController {
                 roles));
     }
 
-    @PostMapping("/signup")
+    @PostMapping("/auth/signup")
     public ResponseEntity<?> registerUser(@Valid @RequestBody SignupRequest signUpRequest) {
         if (userRepository.existsByUsername(signUpRequest.getUsername())) {
             return ResponseEntity
@@ -124,5 +118,103 @@ public class AuthController {
         userRepository.save(user);
 
         return ResponseEntity.ok(new MessageResponse("User registered successfully!"));
+    }
+
+    @PatchMapping("/account/{id}")
+    public ResponseEntity<?> update(@PathVariable Long id,
+                                    @RequestBody SignupRequest signUpRequest) throws DefaultException {
+        if (signUpRequest.getEmail() == null && signUpRequest.getUsername() == null) {
+            return ResponseEntity
+                    .badRequest()
+                    .body(new MessageResponse("Error: Enter email or username you want to update"));
+        }
+        Optional<User> userOpt = userRepository.findByUsername(AuthTokenFilter.usernameLoggedIn);
+
+        if (userOpt.isPresent()) {
+            User userData = userOpt.get();
+            if (userData.getId().equals(id)) {
+
+                if (signUpRequest.getUsername() == null) {
+                    signUpRequest.setUsername(userData.getUsername());
+                }
+                if (signUpRequest.getEmail() == null) {
+                    signUpRequest.setEmail(userData.getEmail());
+                }
+
+                User user = new User(id, signUpRequest.getUsername(),
+                        signUpRequest.getEmail(),
+                        userData.getPassword(), userData.getActive(), userData.getEndDate());
+                try {
+                    userRepository.save(user);
+                    return ResponseEntity.ok(new MessageResponse("User updated successfully!"));
+                } catch (DataIntegrityViolationException ex) {
+                    return ResponseEntity
+                            .badRequest()
+                            .body(new MessageResponse("Error: Username is already taken!"));
+                }
+            }  else {
+                return ResponseEntity
+                        .badRequest()
+                        .body(new MessageResponse("Error: User does not match"));
+            }
+        } else {
+            return ResponseEntity
+                    .badRequest()
+                    .body(new MessageResponse("Error: User not found"));
+        }
+
+    }
+
+    @PatchMapping("/accountPw/{id}")
+    public ResponseEntity<?> updatePassword(@PathVariable Long id,
+                                            @RequestBody LoginRequest loginRequest) {
+        if (loginRequest.getPassword() == null) {
+            return ResponseEntity
+                    .badRequest()
+                    .body(new MessageResponse("Error: Enter new password"));
+        }
+        Optional<User> userOpt = userRepository.findByUsername(AuthTokenFilter.usernameLoggedIn);
+
+        if (userOpt.isPresent()) {
+            User userData = userOpt.get();
+            if (userData.getId().equals(id)) {
+                User user = new User(id, userData.getUsername(),
+                        userData.getEmail(),
+                        encoder.encode(loginRequest.getPassword()), userData.getActive(), userData.getEndDate());
+
+                userRepository.save(user);
+                return ResponseEntity.ok(new MessageResponse("Password updated successfully!"));
+            } else {
+                return ResponseEntity
+                        .badRequest()
+                        .body(new MessageResponse("Error: User does not match"));
+            }
+        } else {
+            return ResponseEntity
+                    .badRequest()
+                    .body(new MessageResponse("Error: User not found"));
+        }
+
+    }
+
+    @PatchMapping("/deactivate/{id}")
+    public ResponseEntity<?> deactivate(@PathVariable Long id) {
+        Optional<User> userOpt = userRepository.findByUsername(AuthTokenFilter.usernameLoggedIn);
+
+        if (userOpt.isPresent()) {
+            User userData = userOpt.get();
+            if (userData.getId().equals(id)) {
+                userRepository.deactivate(id);
+                return ResponseEntity.ok(new MessageResponse("User deactivated successfully!"));
+            } else {
+                return ResponseEntity
+                        .badRequest()
+                        .body(new MessageResponse("Error: User does not match"));
+            }
+        } else {
+            return ResponseEntity
+                    .badRequest()
+                    .body(new MessageResponse("Error: User not found"));
+        }
     }
 }

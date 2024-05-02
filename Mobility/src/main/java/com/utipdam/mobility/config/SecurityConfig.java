@@ -64,6 +64,9 @@ public class SecurityConfig { // extends WebSecurityConfigurerAdapter {
                                 .requestMatchers(HttpMethod.DELETE, "/dataset/*").authenticated()
                                 .requestMatchers(HttpMethod.DELETE, "/organization/*").authenticated()
                                 .requestMatchers(HttpMethod.POST, "/mobility/anonymizationJob").authenticated()
+                                .requestMatchers(HttpMethod.PATCH, "/account/*").authenticated()
+                                .requestMatchers(HttpMethod.PATCH, "/accountPw/*").authenticated()
+                                .requestMatchers(HttpMethod.PATCH, "/deactivate/*").authenticated()
                                 .requestMatchers("/**").permitAll().anyRequest().authenticated()
                 );
 
