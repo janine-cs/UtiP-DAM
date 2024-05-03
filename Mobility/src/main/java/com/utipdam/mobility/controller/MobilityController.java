@@ -95,6 +95,8 @@ public class MobilityController {
     @Autowired
     AuthenticationManager authenticationManager;
 
+    private final String RESOLUTION = "daily";
+
     @PostMapping(value = {"/mobility/upload", "/mobility/anonymize"})
     public ResponseEntity<Resource> anonymizeOnly(@RequestPart MultipartFile file,
                                                   @RequestPart String k) {
@@ -605,6 +607,209 @@ public class MobilityController {
                 HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
 
     }
+
+    @PostMapping("/mobility/anonymizationJob/{datasetDefinitionId}")
+    public ResponseEntity<Resource> addDataset(@PathVariable UUID datasetDefinitionId,
+                                               @RequestPart MultipartFile file,
+                                               @RequestPart String k) {
+
+        String errorMessage;
+
+        if (file.isEmpty()) {
+            errorMessage = "File is required";
+            logger.error(errorMessage);
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, errorMessage);
+        }
+        if (!Objects.requireNonNull(file.getOriginalFilename()).endsWith(".csv")) {
+            errorMessage = "Please upload a csv file. You provided " + file.getOriginalFilename();
+            logger.error(errorMessage);
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, errorMessage);
+        }
+
+        if (file.getSize() > MAX_FILE_SIZE) {
+            errorMessage = "Exceeded max file size " + MAX_FILE_SIZE;
+            logger.error(errorMessage);
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, errorMessage);
+        }
+        if (!isNumeric(k) || (Integer.parseInt(k) < 0 || Integer.parseInt(k) > 100)) {
+            errorMessage = "k must be a number between 0 - 100. You provided " + k;
+            logger.error(errorMessage);
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, errorMessage);
+        }
+
+
+        if (AuthTokenFilter.usernameLoggedIn == null) {
+            errorMessage = "Login is required";
+            logger.error(errorMessage);
+            throw new ResponseStatusException(
+                    HttpStatus.BAD_REQUEST, errorMessage);
+        }
+
+        File fOrg;
+        String path = "/data/mobility/" + datasetDefinitionId;
+        try {
+            fOrg = new File(path);
+            fOrg.setReadable(true, false);
+            fOrg.setWritable(true, false);
+            fOrg.mkdirs();
+            Files.setPosixFilePermissions(Path.of("/data/mobility/" + datasetDefinitionId), PosixFilePermissions.fromString("rwxrwxrwx"));
+        } catch (IOException e) {
+            errorMessage = e.getMessage();
+            logger.error(errorMessage);
+            throw new ResponseStatusException(
+                    HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
+        }
+
+
+        try {
+            String csvDate = null;
+            StringBuffer inputBuffer = new StringBuffer();
+
+            //anonymization process
+            UUID uuid = UUID.randomUUID();
+            String fileName = "upload-" + uuid + ".csv";
+            String strPath = path + "/" + fileName;
+
+            FileUploadUtil.saveFile(fileName, file, Paths.get(path));
+            fileName = "dataset-" + uuid + "-.csv";
+            String strOutPath = path + "/" + fileName;
+
+            File fi = new File(strOutPath);
+            String pyPath = "/opt/utils/anonymization-v" + ANONYMIZATION_VERSION + ".py";
+
+            ProcessBuilder processBuilder = new ProcessBuilder("python3", pyPath,
+                    "--input", strPath, "--k", k);
+            processBuilder.redirectErrorStream(true);
+            processBuilder.redirectOutput(ProcessBuilder.Redirect.appendTo(fi));
+            Process process = processBuilder.start();
+
+            int exitVal = process.waitFor();
+            logger.info("exitVal " + exitVal);
+            if (exitVal == 0) {
+                int dateIndex = -1;
+                String line;
+                long i = 0;
+                BufferedReader br = new BufferedReader(new FileReader(strOutPath));
+                while ((line = br.readLine()) != null) {
+                    if (i == 0 || dateIndex < 0) {
+                        if (!line.contains("_id")) {
+                            continue;
+                        }
+                        String[] nextRecord = line.split(",");
+                        dateIndex = Arrays.asList(nextRecord).indexOf(START_TIME);
+                        if (dateIndex < 0) {
+                            dateIndex = Arrays.asList(nextRecord).indexOf("start_time");
+                        }
+                    }
+
+                    inputBuffer.append(line);
+                    inputBuffer.append('\n');
+
+                    if (dateIndex > 0 && i == 1) {
+                        csvDate = line.split(",")[dateIndex];
+                        csvDate = csvDate.split(" ")[0];
+                        if (!GenericValidator.isDate(csvDate, DATE_FORMAT, true)) {
+                            errorMessage = "first_time_seen must be yyyy-MM-dd HH:mm:ss format";
+                            logger.error(errorMessage);
+                            throw new ResponseStatusException(
+                                    HttpStatus.BAD_REQUEST, errorMessage);
+                        }
+                    }
+                    i++;
+                }
+
+                if (csvDate != null) {
+                    String inputStr = inputBuffer.toString();
+                    fileName = "dataset-" + uuid + "-" + csvDate + ".csv";
+                    String strPathNew = path + "/" + fileName;
+                    Path oldPath = Paths.get(strOutPath);
+                    Path newPath = Paths.get(strPathNew);
+                    Files.move(oldPath, newPath, StandardCopyOption.REPLACE_EXISTING);
+
+                    long dataPoints = i - 1;
+                    logger.info("dataPoints:" + dataPoints);
+                    Dataset d = new Dataset();
+                    Optional<DatasetDefinition> ds = datasetDefinitionBusiness.getById(datasetDefinitionId);
+                    if (ds.isPresent()){
+                        d.setId(uuid);
+                        d.setDatasetDefinition(ds.get());
+                        d.setStartDate(Date.valueOf(csvDate));
+                        d.setEndDate(Date.valueOf(csvDate));
+                        d.setResolution(RESOLUTION);
+                        d.setK(Integer.valueOf(k));
+                        d.setDataPoints(dataPoints);
+
+                        datasetBusiness.save(d);
+
+                        HttpHeaders responseHeaders = new HttpHeaders();
+
+                        ContentDisposition contentDisposition = ContentDisposition.builder("inline")
+                                .filename(fileName)
+                                .build();
+                        responseHeaders.setContentDisposition(contentDisposition);
+                        InputStream inputStream = new ByteArrayInputStream(inputStr.getBytes(StandardCharsets.UTF_8));
+                        InputStreamResource resource = new InputStreamResource(inputStream);
+                        br.close();
+                        File f = new File(strPath);
+                        if (f.delete()) {
+                            logger.info(f + " file deleted");
+                        }
+                        return ResponseEntity.ok()
+                                .headers(responseHeaders)
+                                .contentLength(inputStream.available())
+                                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                                .body(resource);
+                    }else{
+                        errorMessage = "Dataset definition does not exist";
+                        logger.error(errorMessage);
+                        throw new ResponseStatusException(
+                                HttpStatus.NOT_FOUND, errorMessage);
+                    }
+
+
+                }
+
+            } else {
+                InputStream inputStream = new FileInputStream(fi);
+                InputStreamResource resource = new InputStreamResource(inputStream);
+                HttpHeaders responseHeaders = new HttpHeaders();
+
+                ContentDisposition contentDisposition = ContentDisposition.builder("inline")
+                        .filename("error.txt")
+                        .build();
+
+                responseHeaders.setContentDisposition(contentDisposition);
+
+                File f = new File(strPath);
+                if (f.delete()) {
+                    logger.info(f + " file deleted");
+                }
+                return ResponseEntity.internalServerError()
+                        .headers(responseHeaders)
+                        .contentLength(inputStream.available())
+                        .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                        .body(resource);
+
+            }
+
+        } catch (IOException | InterruptedException e) {
+            errorMessage = e.getMessage();
+            logger.error(errorMessage);
+            throw new ResponseStatusException(
+                    HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
+        }
+
+        errorMessage = "An error occurred while processing your request";
+        logger.error(errorMessage);
+        throw new ResponseStatusException(
+                HttpStatus.INTERNAL_SERVER_ERROR, errorMessage);
+
+    }
+
 
     @GetMapping("/mobility/visitorDetection")
     public ResponseEntity<Map<String, Object>> findMeHere(@RequestParam Integer[] locationIds,

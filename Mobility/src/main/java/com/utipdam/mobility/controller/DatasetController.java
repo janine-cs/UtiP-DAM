@@ -22,6 +22,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
 import java.io.IOException;
@@ -157,34 +158,34 @@ public class DatasetController {
         }
     }
 
-    @PostMapping("/myDataset")
-    public ResponseEntity<Map<String, Object>> createDataset(@RequestBody DatasetDefinitionDTO dataset) {
+    @PutMapping("/datasetDefinition/{id}")
+    public ResponseEntity<Map<String, Object>> update(@PathVariable UUID id,
+                                                      @RequestBody DatasetDefinitionDTO dataset) throws DefaultException {
         Optional<User> userOpt = userRepository.findByUsername(AuthTokenFilter.usernameLoggedIn);
-
         Map<String, Object> response = new HashMap<>();
         if (userOpt.isPresent()) {
-            if (dataset.getName() == null) {
-                logger.error("Name is required");
-                response.put("error", "Name is required");
-                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-            }
+            User userData = userOpt.get();
 
-            DatasetDefinition ds = datasetDefinitionBusiness.getByName(dataset.getName());
+            Optional<DatasetDefinition> opt = datasetDefinitionBusiness.getById(id);
+            if (opt.isPresent()) {
+                DatasetDefinition d = opt.get();
+                if (userData.getId().equals(d.getUserId())) {
+                    response.put("data", datasetDefinitionBusiness.update(id, dataset));
+                    return new ResponseEntity<>(response, HttpStatus.OK);
+                } else {
+                    return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
+                }
 
-            if (ds == null) {
-                response.put("data", datasetDefinitionBusiness.save(dataset));
             } else {
-                logger.error("Name already exists. Please choose another.");
-                return new ResponseEntity<>(HttpStatus.CONFLICT);
+                return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
             }
 
-            return new ResponseEntity<>(response, HttpStatus.OK);
         } else {
             return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
         }
-
     }
 
+    //todo
     @GetMapping("/dataset/{datasetDefinitionId}")
     public ResponseEntity<Map<String, Object>> getById(@PathVariable UUID datasetDefinitionId) {
         Map<String, Object> response = new HashMap<>();
@@ -209,6 +210,94 @@ public class DatasetController {
         }
 
     }
+
+    @DeleteMapping("/datasetDefinition/{id}")
+    public ResponseEntity<?> delete(@PathVariable UUID id) {
+        Optional<User> userOpt = userRepository.findByUsername(AuthTokenFilter.usernameLoggedIn);
+
+        if (userOpt.isPresent()) {
+            User userData = userOpt.get();
+            Optional<DatasetDefinition> dd = datasetDefinitionBusiness.getById(id);
+            if (dd.isPresent()) {
+                DatasetDefinition datasetDef = dd.get();
+                if (userData.getId().equals(datasetDef.getUserId())){
+                    if (datasetDef.getInternal() != null && !datasetDef.getInternal()) {
+                        try {
+                            FileUtils.deleteDirectory(new File(PATH + "/" + datasetDef.getId()));
+                        } catch (IOException e) {
+                            logger.error(e.getMessage());
+                        }
+                    }
+
+                    datasetDefinitionBusiness.delete(id);
+                    return ResponseEntity.ok(new MessageResponse("Dataset definition deleted successfully!"));
+                } else {
+                    return ResponseEntity
+                            .badRequest()
+                            .body(new MessageResponse("Not authorized"));
+                }
+
+            }else {
+                return ResponseEntity
+                        .badRequest()
+                        .body(new MessageResponse("Error: Dataset definition not found"));
+            }
+        } else {
+            return ResponseEntity
+                    .badRequest()
+                    .body(new MessageResponse("Error: User not found"));
+        }
+    }
+
+    @DeleteMapping("/dataset/{id}")
+    public ResponseEntity<?> deleteDataset(@PathVariable UUID id) {
+        Optional<User> userOpt = userRepository.findByUsername(AuthTokenFilter.usernameLoggedIn);
+
+        if (userOpt.isPresent()) {
+            User userData = userOpt.get();
+            Optional<Dataset> ds = datasetBusiness.getById(id);
+            if (ds.isPresent()) {
+                Dataset dataset = ds.get();
+                Optional<DatasetDefinition> dd = datasetDefinitionBusiness.getById(dataset.getDatasetDefinition().getId());
+                if (dd.isPresent()) {
+                    DatasetDefinition datasetDef = dd.get();
+                    if (userData.getId().equals(datasetDef.getUserId())){
+                        if (datasetDef.getInternal() != null && !datasetDef.getInternal()) {
+                            File files = new File(PATH + "/" + datasetDef.getId());
+                            if (files.listFiles() != null) {
+                                for (File f : files.listFiles()) {
+                                    if (f.getName().contains(dataset.getId().toString())) {
+                                        f.delete();
+                                    }
+                                }
+                            }
+
+                        }
+
+                        datasetBusiness.delete(id);
+                        return ResponseEntity.ok(new MessageResponse("Dataset deleted successfully!"));
+                    } else {
+                        return ResponseEntity
+                                .badRequest()
+                                .body(new MessageResponse("Not authorized"));
+                    }
+                }else {
+                    return ResponseEntity
+                            .badRequest()
+                            .body(new MessageResponse("Error: Dataset definition not found"));
+                }
+            }else {
+                return ResponseEntity
+                        .badRequest()
+                        .body(new MessageResponse("Error: Dataset not found"));
+            }
+        } else {
+            return ResponseEntity
+                    .badRequest()
+                    .body(new MessageResponse("Error: User not found"));
+        }
+    }
+
 
     @GetMapping("/datasetDefinitions")
     public ResponseEntity<Page<DatasetDefinition>> getAllDatasetDefinitions(@RequestParam(required = false) Boolean internal,
@@ -239,6 +328,8 @@ public class DatasetController {
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
 
+
+    //used by admin
     @PostMapping("/datasetDefinition")
     public ResponseEntity<Map<String, Object>> save(@RequestBody DatasetDefinitionDTO dataset) {
         Map<String, Object> response = new HashMap<>();
@@ -260,14 +351,8 @@ public class DatasetController {
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
 
-    @PutMapping("/datasetDefinition/{id}")
-    public ResponseEntity<Map<String, Object>> update(@PathVariable UUID id,
-                                                      @RequestBody DatasetDefinitionDTO dataset) throws DefaultException {
-        Map<String, Object> response = new HashMap<>();
-        response.put("data", datasetDefinitionBusiness.update(id, dataset));
-        return new ResponseEntity<>(response, HttpStatus.OK);
-    }
 
+    //used by Internal module
     @PostMapping("/dataset")
     public ResponseEntity<Map<String, Object>> dataset(@RequestBody DatasetDTO datasetDTO) {
         Map<String, Object> response = new HashMap<>();
@@ -313,47 +398,5 @@ public class DatasetController {
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
 
-    @DeleteMapping("/datasetDefinition/{id}")
-    public void delete(@PathVariable UUID id) {
-        Optional<DatasetDefinition> dd = datasetDefinitionBusiness.getById(id);
-        if (dd.isPresent()) {
-            DatasetDefinition datasetDef = dd.get();
-            if (datasetDef.getInternal() != null && !datasetDef.getInternal()) {
-                try {
-                    FileUtils.deleteDirectory(new File(PATH + "/" + datasetDef.getId()));
-                } catch (IOException e) {
-                    logger.error(e.getMessage());
-                }
-            }
-
-            datasetDefinitionBusiness.delete(id);
-        }
-    }
-
-    @DeleteMapping("/dataset/{id}")
-    public void deleteDataset(@PathVariable UUID id) {
-        Optional<Dataset> ds = datasetBusiness.getById(id);
-        if (ds.isPresent()) {
-            Dataset dataset = ds.get();
-            Optional<DatasetDefinition> dd = datasetDefinitionBusiness.getById(dataset.getDatasetDefinition().getId());
-            if (dd.isPresent()) {
-                DatasetDefinition datasetDef = dd.get();
-                if (datasetDef.getInternal() != null && !datasetDef.getInternal()) {
-                    File files = new File(PATH + "/" + datasetDef.getId());
-                    if (files.listFiles() != null) {
-                        for (File f : files.listFiles()) {
-                            if (f.getName().contains(dataset.getId().toString())) {
-                                f.delete();
-                            }
-                        }
-                    }
-
-                }
-            }
-
-            datasetBusiness.delete(id);
-        }
-
-    }
 
 }
