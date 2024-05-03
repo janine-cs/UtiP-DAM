@@ -32,6 +32,10 @@ public class DatasetDefinitionService {
         return datasetDefinitionRepository.findAllByOrderByUpdatedOnDesc();
     }
 
+    public List<DatasetDefinition> findAllByUserId(Long userId) {
+        return datasetDefinitionRepository.findAllByUserIdOrderByUpdatedOnDesc(userId);
+    }
+
     public DatasetDefinition save(DatasetDefinition datasetDefinition) {
         return datasetDefinitionRepository.save(datasetDefinition);
     }

@@ -120,9 +120,8 @@ public class AuthController {
         return ResponseEntity.ok(new MessageResponse("User registered successfully!"));
     }
 
-    @PatchMapping("/account/{id}")
-    public ResponseEntity<?> update(@PathVariable Long id,
-                                    @RequestBody SignupRequest signUpRequest) throws DefaultException {
+    @PatchMapping("/account")
+    public ResponseEntity<?> update(@RequestBody SignupRequest signUpRequest) throws DefaultException {
         if (signUpRequest.getEmail() == null && signUpRequest.getUsername() == null) {
             return ResponseEntity
                     .badRequest()
@@ -132,31 +131,25 @@ public class AuthController {
 
         if (userOpt.isPresent()) {
             User userData = userOpt.get();
-            if (userData.getId().equals(id)) {
+            if (signUpRequest.getUsername() == null) {
+                signUpRequest.setUsername(userData.getUsername());
+            }
+            if (signUpRequest.getEmail() == null) {
+                signUpRequest.setEmail(userData.getEmail());
+            }
 
-                if (signUpRequest.getUsername() == null) {
-                    signUpRequest.setUsername(userData.getUsername());
-                }
-                if (signUpRequest.getEmail() == null) {
-                    signUpRequest.setEmail(userData.getEmail());
-                }
-
-                User user = new User(id, signUpRequest.getUsername(),
-                        signUpRequest.getEmail(),
-                        userData.getPassword(), userData.getActive(), userData.getEndDate());
-                try {
-                    userRepository.save(user);
-                    return ResponseEntity.ok(new MessageResponse("User updated successfully!"));
-                } catch (DataIntegrityViolationException ex) {
-                    return ResponseEntity
-                            .badRequest()
-                            .body(new MessageResponse("Error: Username is already taken!"));
-                }
-            }  else {
+            User user = new User(userData.getId(), signUpRequest.getUsername(),
+                    signUpRequest.getEmail(),
+                    userData.getPassword(), userData.getActive(), userData.getEndDate());
+            try {
+                userRepository.save(user);
+                return ResponseEntity.ok(new MessageResponse("User updated successfully!"));
+            } catch (DataIntegrityViolationException ex) {
                 return ResponseEntity
                         .badRequest()
-                        .body(new MessageResponse("Error: User does not match"));
+                        .body(new MessageResponse("Error: Username is already taken!"));
             }
+
         } else {
             return ResponseEntity
                     .badRequest()
@@ -165,9 +158,8 @@ public class AuthController {
 
     }
 
-    @PatchMapping("/accountPw/{id}")
-    public ResponseEntity<?> updatePassword(@PathVariable Long id,
-                                            @RequestBody LoginRequest loginRequest) {
+    @PatchMapping("/accountPw")
+    public ResponseEntity<?> updatePassword(@RequestBody LoginRequest loginRequest) {
         if (loginRequest.getPassword() == null) {
             return ResponseEntity
                     .badRequest()
@@ -177,40 +169,27 @@ public class AuthController {
 
         if (userOpt.isPresent()) {
             User userData = userOpt.get();
-            if (userData.getId().equals(id)) {
-                User user = new User(id, userData.getUsername(),
-                        userData.getEmail(),
-                        encoder.encode(loginRequest.getPassword()), userData.getActive(), userData.getEndDate());
+            User user = new User(userData.getId(), userData.getUsername(),
+                    userData.getEmail(),
+                    encoder.encode(loginRequest.getPassword()), userData.getActive(), userData.getEndDate());
 
-                userRepository.save(user);
-                return ResponseEntity.ok(new MessageResponse("Password updated successfully!"));
-            } else {
-                return ResponseEntity
-                        .badRequest()
-                        .body(new MessageResponse("Error: User does not match"));
-            }
+            userRepository.save(user);
+            return ResponseEntity.ok(new MessageResponse("Password updated successfully!"));
         } else {
             return ResponseEntity
                     .badRequest()
-                    .body(new MessageResponse("Error: User not found"));
+                    .body(new MessageResponse("Error: User does not match"));
         }
-
     }
 
-    @PatchMapping("/deactivate/{id}")
-    public ResponseEntity<?> deactivate(@PathVariable Long id) {
+    @PatchMapping("/deactivate")
+    public ResponseEntity<?> deactivate() {
         Optional<User> userOpt = userRepository.findByUsername(AuthTokenFilter.usernameLoggedIn);
 
         if (userOpt.isPresent()) {
             User userData = userOpt.get();
-            if (userData.getId().equals(id)) {
-                userRepository.deactivate(id);
-                return ResponseEntity.ok(new MessageResponse("User deactivated successfully!"));
-            } else {
-                return ResponseEntity
-                        .badRequest()
-                        .body(new MessageResponse("Error: User does not match"));
-            }
+            userRepository.deactivate(userData.getId());
+            return ResponseEntity.ok(new MessageResponse("User deactivated successfully!"));
         } else {
             return ResponseEntity
                     .badRequest()

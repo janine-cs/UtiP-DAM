@@ -60,13 +60,16 @@ public class SecurityConfig { // extends WebSecurityConfigurerAdapter {
                 .exceptionHandling(exception -> exception.authenticationEntryPoint(unauthorizedHandler))
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth ->
-                        auth.requestMatchers(HttpMethod.DELETE, "/datasetDefinition/*").authenticated()
-                                .requestMatchers(HttpMethod.DELETE, "/dataset/*").authenticated()
+                        auth.requestMatchers(HttpMethod.DELETE, "/datasetDefinition/**").authenticated()
+                                .requestMatchers(HttpMethod.DELETE, "/dataset/**").authenticated()
                                 .requestMatchers(HttpMethod.DELETE, "/organization/*").authenticated()
                                 .requestMatchers(HttpMethod.POST, "/mobility/anonymizationJob").authenticated()
                                 .requestMatchers(HttpMethod.PATCH, "/account/*").authenticated()
                                 .requestMatchers(HttpMethod.PATCH, "/accountPw/*").authenticated()
                                 .requestMatchers(HttpMethod.PATCH, "/deactivate/*").authenticated()
+                                .requestMatchers(HttpMethod.GET, "/myDatasets/*").authenticated()
+                                .requestMatchers(HttpMethod.PUT, "/dataset/**").authenticated()
+                                .requestMatchers(HttpMethod.PATCH, "/dataset/**").authenticated()
                                 .requestMatchers("/**").permitAll().anyRequest().authenticated()
                 );
 

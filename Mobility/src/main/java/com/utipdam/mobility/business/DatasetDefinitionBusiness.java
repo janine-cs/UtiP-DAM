@@ -35,6 +35,11 @@ public class DatasetDefinitionBusiness {
         return datasetDefinitionService.findAll();
     }
 
+    public List<DatasetDefinition> getAllByUserId(Long userId) {
+        return datasetDefinitionService.findAllByUserId(userId);
+    }
+
+
     public DatasetDefinition getByName(String name) {
         return datasetDefinitionService.findByName(name);
     }

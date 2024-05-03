@@ -3,14 +3,14 @@ package com.utipdam.mobility.controller;
 import com.utipdam.mobility.business.DatasetDefinitionBusiness;
 import com.utipdam.mobility.business.DatasetBusiness;
 import com.utipdam.mobility.business.OrderBusiness;
+import com.utipdam.mobility.config.AuthTokenFilter;
 import com.utipdam.mobility.exception.DefaultException;
-import com.utipdam.mobility.model.DatasetDTO;
-import com.utipdam.mobility.model.DatasetDefinitionDTO;
-import com.utipdam.mobility.model.DatasetListDTO;
-import com.utipdam.mobility.model.DatasetResponseDTO;
+import com.utipdam.mobility.model.*;
 import com.utipdam.mobility.model.entity.Dataset;
 import com.utipdam.mobility.model.entity.DatasetDefinition;
 import com.utipdam.mobility.model.entity.DownloadsByDay;
+import com.utipdam.mobility.model.entity.User;
+import com.utipdam.mobility.model.repository.UserRepository;
 import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,13 +42,16 @@ public class DatasetController {
     @Autowired
     private OrderBusiness orderBusiness;
 
+    @Autowired
+    UserRepository userRepository;
+
     private final String PATH = "/data/mobility";
 
     @GetMapping("/v2/datasets")
     public ResponseEntity<Page<DatasetResponseDTO>> getAll(@RequestParam(required = false) Boolean publish,
                                                            @RequestParam(required = false) Boolean free,
-                                                      @RequestParam(defaultValue = "0") int page,
-                                                      @RequestParam(defaultValue = "9") int size) {
+                                                           @RequestParam(defaultValue = "0") int page,
+                                                           @RequestParam(defaultValue = "9") int size) {
         Pageable paging = PageRequest.of(page, size);
         List<DatasetDefinition> pResult = datasetDefinitionBusiness.getAll();
         Stream<DatasetResponseDTO> data = pResult.stream().
@@ -73,7 +76,7 @@ public class DatasetController {
         if (publish == null) {
             if (free == null) {
                 lst = data.collect(Collectors.toList());
-            }else{
+            } else {
                 lst = data.filter(dt -> dt.getFee() != null && (free ? dt.getFee().equals(0D) : dt.getFee() > 0))
                         .collect(Collectors.toList());
             }
@@ -82,7 +85,7 @@ public class DatasetController {
             if (free == null) {
                 lst = data.filter(dt -> dt.getPublish() != null && (publish == dt.getPublish()))
                         .collect(Collectors.toList());
-            }else{
+            } else {
                 lst = data.filter(dt -> dt.getPublish() != null && (publish == dt.getPublish()) &&
                                 dt.getFee() != null && (free ? dt.getFee().equals(0D) : dt.getFee() > 0))
                         .collect(Collectors.toList());
@@ -139,6 +142,48 @@ public class DatasetController {
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
 
+    @GetMapping("/myDatasets")
+    public ResponseEntity<Map<String, Object>> getAllDatasetsByUserId() {
+        Optional<User> userOpt = userRepository.findByUsername(AuthTokenFilter.usernameLoggedIn);
+
+        Map<String, Object> response = new HashMap<>();
+        if (userOpt.isPresent()) {
+            User userData = userOpt.get();
+            response.put("data", datasetDefinitionBusiness.getAllByUserId(userData.getId()));
+
+            return new ResponseEntity<>(response, HttpStatus.OK);
+        } else {
+            return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+        }
+    }
+
+    @PostMapping("/myDataset")
+    public ResponseEntity<Map<String, Object>> createDataset(@RequestBody DatasetDefinitionDTO dataset) {
+        Optional<User> userOpt = userRepository.findByUsername(AuthTokenFilter.usernameLoggedIn);
+
+        Map<String, Object> response = new HashMap<>();
+        if (userOpt.isPresent()) {
+            if (dataset.getName() == null) {
+                logger.error("Name is required");
+                response.put("error", "Name is required");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+
+            DatasetDefinition ds = datasetDefinitionBusiness.getByName(dataset.getName());
+
+            if (ds == null) {
+                response.put("data", datasetDefinitionBusiness.save(dataset));
+            } else {
+                logger.error("Name already exists. Please choose another.");
+                return new ResponseEntity<>(HttpStatus.CONFLICT);
+            }
+
+            return new ResponseEntity<>(response, HttpStatus.OK);
+        } else {
+            return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+        }
+
+    }
 
     @GetMapping("/dataset/{datasetDefinitionId}")
     public ResponseEntity<Map<String, Object>> getById(@PathVariable UUID datasetDefinitionId) {
@@ -167,16 +212,16 @@ public class DatasetController {
 
     @GetMapping("/datasetDefinitions")
     public ResponseEntity<Page<DatasetDefinition>> getAllDatasetDefinitions(@RequestParam(required = false) Boolean internal,
-                                                                        @RequestParam(defaultValue = "0") int page,
-                                                                        @RequestParam(defaultValue = "9") int size) {
+                                                                            @RequestParam(defaultValue = "0") int page,
+                                                                            @RequestParam(defaultValue = "9") int size) {
         Pageable paging = PageRequest.of(page, size);
         List<DatasetDefinition> lst;
         if (internal == null) {
             lst = datasetDefinitionBusiness.getAll();
         } else {
             lst = datasetDefinitionBusiness.getAll().stream()
-                        .filter(dt -> dt.getInternal() != null && (internal == dt.getInternal()))
-                        .collect(Collectors.toList());
+                    .filter(dt -> dt.getInternal() != null && (internal == dt.getInternal()))
+                    .collect(Collectors.toList());
         }
         int start = (int) paging.getOffset();
         int end = Math.min((start + paging.getPageSize()), lst.size());
@@ -273,7 +318,7 @@ public class DatasetController {
         Optional<DatasetDefinition> dd = datasetDefinitionBusiness.getById(id);
         if (dd.isPresent()) {
             DatasetDefinition datasetDef = dd.get();
-            if (datasetDef.getInternal() != null && !datasetDef.getInternal()){
+            if (datasetDef.getInternal() != null && !datasetDef.getInternal()) {
                 try {
                     FileUtils.deleteDirectory(new File(PATH + "/" + datasetDef.getId()));
                 } catch (IOException e) {
@@ -295,7 +340,7 @@ public class DatasetController {
                 DatasetDefinition datasetDef = dd.get();
                 if (datasetDef.getInternal() != null && !datasetDef.getInternal()) {
                     File files = new File(PATH + "/" + datasetDef.getId());
-                    if (files.listFiles() != null ){
+                    if (files.listFiles() != null) {
                         for (File f : files.listFiles()) {
                             if (f.getName().contains(dataset.getId().toString())) {
                                 f.delete();
