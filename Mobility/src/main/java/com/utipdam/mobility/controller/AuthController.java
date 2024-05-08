@@ -13,6 +13,7 @@ import com.utipdam.mobility.model.entity.User;
 import com.utipdam.mobility.model.repository.RoleRepository;
 import com.utipdam.mobility.model.repository.UserRepository;
 import com.utipdam.mobility.model.service.UserDetailsImpl;
+import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -44,6 +45,8 @@ public class AuthController {
     @Autowired
     JwtUtils jwtUtils;
 
+    String regex = "^[a-zA-Z0-9_-]*$";
+
     @PostMapping("/auth/signin")
     public ResponseEntity<?> authenticateUser(@Valid @RequestBody LoginRequest loginRequest) {
 
@@ -54,6 +57,10 @@ public class AuthController {
         String jwt = jwtUtils.generateJwtToken(authentication);
 
         UserDetailsImpl userDetails = (UserDetailsImpl) authentication.getPrincipal();
+        if (!userDetails.isActive()){
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
         List<String> roles = userDetails.getAuthorities().stream()
                 .map(item -> item.getAuthority())
                 .collect(Collectors.toList());
@@ -67,6 +74,12 @@ public class AuthController {
 
     @PostMapping("/auth/signup")
     public ResponseEntity<?> registerUser(@Valid @RequestBody SignupRequest signUpRequest) {
+
+        if (!signUpRequest.getUsername().matches(regex)) {
+            return ResponseEntity
+                    .badRequest()
+                    .body(new MessageResponse("Error: Username must only contain alphanumeric and _ - characters!"));
+        }
         if (userRepository.existsByUsername(signUpRequest.getUsername())) {
             return ResponseEntity
                     .badRequest()
@@ -127,6 +140,15 @@ public class AuthController {
                     .badRequest()
                     .body(new MessageResponse("Error: Enter email or username you want to update"));
         }
+
+        if (signUpRequest.getUsername() != null){
+            if (!signUpRequest.getUsername().matches(regex)) {
+                return ResponseEntity
+                        .badRequest()
+                        .body(new MessageResponse("Error: Username must only contain alphanumeric and _ - characters!"));
+            }
+        }
+
         Optional<User> userOpt = userRepository.findByUsername(AuthTokenFilter.usernameLoggedIn);
 
         if (userOpt.isPresent()) {
@@ -141,6 +163,8 @@ public class AuthController {
             User user = new User(userData.getId(), signUpRequest.getUsername(),
                     signUpRequest.getEmail(),
                     userData.getPassword(), userData.getActive(), userData.getEndDate());
+
+            user.setRoles(userData.getRoles());
             try {
                 userRepository.save(user);
                 return ResponseEntity.ok(new MessageResponse("User updated successfully!"));
@@ -172,17 +196,18 @@ public class AuthController {
             User user = new User(userData.getId(), userData.getUsername(),
                     userData.getEmail(),
                     encoder.encode(loginRequest.getPassword()), userData.getActive(), userData.getEndDate());
-
+            user.setRoles(userData.getRoles());
             userRepository.save(user);
             return ResponseEntity.ok(new MessageResponse("Password updated successfully!"));
         } else {
             return ResponseEntity
                     .badRequest()
-                    .body(new MessageResponse("Error: User does not match"));
+                    .body(new MessageResponse("Error: User not found"));
         }
     }
 
     @PatchMapping("/deactivate")
+    @Transactional
     public ResponseEntity<?> deactivate() {
         Optional<User> userOpt = userRepository.findByUsername(AuthTokenFilter.usernameLoggedIn);
 

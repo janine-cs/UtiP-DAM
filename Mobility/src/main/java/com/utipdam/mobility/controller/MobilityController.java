@@ -1087,12 +1087,12 @@ public class MobilityController {
             return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
         }
 
-        // if (file.getSize() > MAX_FILE_SIZE) {
-        // errorMessage = "Exceeded max file size " + MAX_FILE_SIZE;
-        // logger.error(errorMessage);
-        // throw new ResponseStatusException(
-        // HttpStatus.BAD_REQUEST, errorMessage);
-        // }
+         if (file.getSize() > MAX_FILE_SIZE) {
+             errorMessage = "Exceeded max file size " + MAX_FILE_SIZE;
+             logger.error(errorMessage);
+             throw new ResponseStatusException(
+             HttpStatus.BAD_REQUEST, errorMessage);
+         }
 
         if (!isNumeric(k) || Integer.parseInt(k) < 2) {
             errorMessage = "k must be a number between 2 - dataset size. You provided " + k;
