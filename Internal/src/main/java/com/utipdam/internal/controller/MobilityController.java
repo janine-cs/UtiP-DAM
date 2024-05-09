@@ -40,8 +40,6 @@ import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
-import static com.utipdam.internal.InternalApplication.token;
-
 @RestController
 public class MobilityController {
     private static final Logger logger = LoggerFactory.getLogger(MobilityController.class);
@@ -99,11 +97,6 @@ public class MobilityController {
         RestTemplate restTemplate = new RestTemplate();
 
         HttpHeaders headers = new HttpHeaders();
-        //headers.set("Authorization", "Bearer "+ token);
-
-        //logger.info(token);
-
-        //logger.info(requestJson);
         headers.setContentType(MediaType.APPLICATION_JSON);
 
         //anonymization process
