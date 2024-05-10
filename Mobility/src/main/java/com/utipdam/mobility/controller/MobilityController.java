@@ -98,7 +98,7 @@ public class MobilityController {
 
     @PostMapping(value = {"/mobility/upload", "/mobility/anonymize"})
     public ResponseEntity<?> anonymizeOnly(@RequestPart MultipartFile file,
-                                                  @RequestPart String k) {
+                                           @RequestPart String k) {
 
         String errorMessage;
 
@@ -174,60 +174,22 @@ public class MobilityController {
                     inputBuffer.append(line);
                     inputBuffer.append('\n');
 
-                    if (dateIndex > 0 && i == 1) {
-                        csvDate = line.split(",")[dateIndex];
-                        csvDate = csvDate.split(" ")[0];
-                        if (!GenericValidator.isDate(csvDate, DATE_FORMAT, true)) {
-                            errorMessage = "first_time_seen must be yyyy-MM-dd HH:mm:ss format";
-                            logger.error(errorMessage);
-                            return ResponseEntity.internalServerError().body(errorMessage);
-                        }
-                    }
                     i++;
                 }
 
                 logger.info("dataPoints:" + (i - 1));
-                if (csvDate != null) {
-                    HttpHeaders responseHeaders = new HttpHeaders();
 
-                    String inputStr = inputBuffer.toString();
-
-                    ContentDisposition contentDisposition = ContentDisposition.builder("inline")
-                            .filename("dataset-" + csvDate + ".csv")
-                            .build();
-                    responseHeaders.setContentDisposition(contentDisposition);
-                    InputStream inputStream = new ByteArrayInputStream(inputStr.getBytes(StandardCharsets.UTF_8));
-                    InputStreamResource resource = new InputStreamResource(inputStream);
-                    br.close();
-                    File f = new File(strPath);
-                    if (f.delete()) {
-                        logger.info(f + " file deleted");
-                    }
-                    File fOut = new File(strOutPath);
-                    if (fOut.delete()) {
-                        logger.info(fOut + " file deleted");
-                    }
-                    return ResponseEntity.ok()
-                            .headers(responseHeaders)
-                            .contentLength(inputStream.available())
-                            .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                            .body(resource);
-
-                } else {
-                    errorMessage = "Error in anonymization.py command";
-                    logger.error(errorMessage);
-
-                    return ResponseEntity.internalServerError().body(errorMessage);
-                }
-            } else {
-                InputStream inputStream = new FileInputStream(fi);
-                InputStreamResource resource = new InputStreamResource(inputStream);
                 HttpHeaders responseHeaders = new HttpHeaders();
 
+                String inputStr = inputBuffer.toString();
+
                 ContentDisposition contentDisposition = ContentDisposition.builder("inline")
-                        .filename("error.txt")
+                        .filename("dataset.csv")
                         .build();
                 responseHeaders.setContentDisposition(contentDisposition);
+                InputStream inputStream = new ByteArrayInputStream(inputStr.getBytes(StandardCharsets.UTF_8));
+                InputStreamResource resource = new InputStreamResource(inputStream);
+                br.close();
                 File f = new File(strPath);
                 if (f.delete()) {
                     logger.info(f + " file deleted");
@@ -236,11 +198,25 @@ public class MobilityController {
                 if (fOut.delete()) {
                     logger.info(fOut + " file deleted");
                 }
-                return ResponseEntity.internalServerError()
+                return ResponseEntity.ok()
                         .headers(responseHeaders)
                         .contentLength(inputStream.available())
                         .contentType(MediaType.APPLICATION_OCTET_STREAM)
                         .body(resource);
+
+            } else {
+                InputStream inputStream = new FileInputStream(fi);
+
+                File f = new File(strPath);
+                if (f.delete()) {
+                    logger.info(f + " file deleted");
+                }
+                File fOut = new File(strOutPath);
+                if (fOut.delete()) {
+                    logger.info(fOut + " file deleted");
+                }
+                String text = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
+                return ResponseEntity.internalServerError().body(text);
 
             }
         } catch (IOException | InterruptedException e) {
@@ -380,7 +356,7 @@ public class MobilityController {
 
     @PostMapping("/mobility/anonymizationJob")
     public ResponseEntity<?> anonymizeAndSave(@RequestPart MultipartFile file,
-                                                     @RequestPart String dataset) {
+                                              @RequestPart String dataset) {
         ObjectMapper mapper = new ObjectMapper();
         String errorMessage;
         DatasetDefinitionDTO dto;
@@ -559,25 +535,13 @@ public class MobilityController {
 
             } else {
                 InputStream inputStream = new FileInputStream(fi);
-                InputStreamResource resource = new InputStreamResource(inputStream);
-                HttpHeaders responseHeaders = new HttpHeaders();
-
-                ContentDisposition contentDisposition = ContentDisposition.builder("inline")
-                        .filename("error.txt")
-                        .build();
-
-                responseHeaders.setContentDisposition(contentDisposition);
 
                 File f = new File(strPath);
                 if (f.delete()) {
                     logger.info(f + " file deleted");
                 }
-                return ResponseEntity.internalServerError()
-                        .headers(responseHeaders)
-                        .contentLength(inputStream.available())
-                        .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                        .body(resource);
-
+                String text = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
+                return ResponseEntity.internalServerError().body(text);
             }
 
         } catch (IOException | InterruptedException e) {
@@ -594,8 +558,8 @@ public class MobilityController {
 
     @PostMapping("/mobility/anonymizationJob/{datasetDefinitionId}")
     public ResponseEntity<?> addDataset(@PathVariable UUID datasetDefinitionId,
-                                               @RequestPart MultipartFile file,
-                                               @RequestPart String k) {
+                                        @RequestPart MultipartFile file,
+                                        @RequestPart String k) {
 
         String errorMessage;
 
@@ -711,7 +675,7 @@ public class MobilityController {
                     logger.info("dataPoints:" + dataPoints);
                     Dataset d = new Dataset();
                     Optional<DatasetDefinition> ds = datasetDefinitionBusiness.getById(datasetDefinitionId);
-                    if (ds.isPresent()){
+                    if (ds.isPresent()) {
                         d.setId(uuid);
                         d.setDatasetDefinition(ds.get());
                         d.setStartDate(Date.valueOf(csvDate));
@@ -741,7 +705,7 @@ public class MobilityController {
                                 .contentLength(inputStream.available())
                                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
                                 .body(resource);
-                    }else{
+                    } else {
                         errorMessage = "Dataset definition does not exist";
                         logger.error(errorMessage);
                         return ResponseEntity.notFound().build();
@@ -825,9 +789,9 @@ public class MobilityController {
                             boolean newFormat = false;
                             try (CSVReader csvReader = new CSVReaderBuilder(new FileReader(files[0])).withSkipLines(1).withCSVParser(rfc4180Parser).build()) {
                                 String[] nextRecord;
-                                int i =0;
+                                int i = 0;
                                 while ((nextRecord = csvReader.readNext()) != null) {
-                                    if (i == 0){
+                                    if (i == 0) {
                                         newFormat = Arrays.stream(nextRecord).count() == Arrays.stream(NEW_CSV_FORMAT).count();
                                         logger.info("new format " + newFormat);
                                     }
@@ -857,8 +821,8 @@ public class MobilityController {
                                         .thenComparing(VisitorTracksNew::getStartTime));
                                 vIdMap = visitorTracksNew.stream().collect(Collectors.groupingBy(
                                         VisitorTracksNew::getAnonymizedUniqueId,
-                                                Collectors.mapping(VisitorTracksNew::getLocationId, Collectors.toList())));
-                            }else{
+                                        Collectors.mapping(VisitorTracksNew::getLocationId, Collectors.toList())));
+                            } else {
                                 visitorTracks.sort(Comparator.comparing(VisitorTracks::getVisitorId)
                                         .thenComparing(VisitorTracks::getFirstTimeSeen));
                                 vIdMap = visitorTracks.stream().filter(p -> p.getRegionId() > 0)
@@ -1045,90 +1009,90 @@ public class MobilityController {
 
     @PostMapping("/mobility/audit")
     public Callable<ResponseEntity<Map<String, Object>>> audit(@RequestPart MultipartFile file,
-                                               @RequestPart String k) {
+                                                               @RequestPart String k) {
         return () -> {
-                String errorMessage;
-                Map<String, Object> response = new HashMap<>();
-                if (file.isEmpty()) {
-                    errorMessage = "File is required";
-                    logger.error(errorMessage);
-                    response.put("error", errorMessage);
-                    return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-                }
-                if (!Objects.requireNonNull(file.getOriginalFilename()).endsWith(".csv")) {
-                    errorMessage = "Please upload a csv file. You provided " + file.getOriginalFilename();
-                    logger.error(errorMessage);
-                    response.put("error", errorMessage);
-                    return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-                }
+            String errorMessage;
+            Map<String, Object> response = new HashMap<>();
+            if (file.isEmpty()) {
+                errorMessage = "File is required";
+                logger.error(errorMessage);
+                response.put("error", errorMessage);
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+            if (!Objects.requireNonNull(file.getOriginalFilename()).endsWith(".csv")) {
+                errorMessage = "Please upload a csv file. You provided " + file.getOriginalFilename();
+                logger.error(errorMessage);
+                response.put("error", errorMessage);
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
 
-                if (file.getSize() > MAX_FILE_SIZE) {
-                    errorMessage = "Exceeded max file size " + MAX_FILE_SIZE;
-                    logger.error(errorMessage);
-                    return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-                }
+            if (file.getSize() > MAX_FILE_SIZE) {
+                errorMessage = "Exceeded max file size " + MAX_FILE_SIZE;
+                logger.error(errorMessage);
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
 
-                if (!isNumeric(k) || Integer.parseInt(k) < 2) {
-                    errorMessage = "k must be a number between 2 - dataset size. You provided " + k;
-                    logger.error(errorMessage);
-                    response.put("error", errorMessage);
-                    return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-                }
+            if (!isNumeric(k) || Integer.parseInt(k) < 2) {
+                errorMessage = "k must be a number between 2 - dataset size. You provided " + k;
+                logger.error(errorMessage);
+                response.put("error", errorMessage);
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
 
-                UUID uuid = UUID.randomUUID();
-                String fileName = "upload-" + uuid + ".csv";
-                String path = "/tmp";
-                String strPath = path + "/" + fileName;
+            UUID uuid = UUID.randomUUID();
+            String fileName = "upload-" + uuid + ".csv";
+            String path = "/tmp";
+            String strPath = path + "/" + fileName;
 
 
-                try {
-                    FileUploadUtil.saveFile(fileName, file, Paths.get(path));
+            try {
+                FileUploadUtil.saveFile(fileName, file, Paths.get(path));
 
-                    ProcessBuilder processBuilder = new ProcessBuilder("python3", "/opt/utils/audit-v" + AUDIT_VERSION + ".py", "--input", strPath, "--k", k);
-                    processBuilder.redirectErrorStream(true);
-                    Process process = processBuilder.start();
-                    //this will cause a timeout
-                    int exitVal = process.waitFor();
-                    logger.info("exitVal " + exitVal);
-                    String line;
-                    StringBuilder out = new StringBuilder();
-                    BufferedReader br = new BufferedReader(new InputStreamReader(process.getInputStream()));
-                    if (exitVal == 0) {
-                        while ((line = br.readLine()) != null) {
-                            out.append(line);
-                        }
-                        br.close();
-                        File f = new File(strPath);
-                        if (f.delete()) {
-                            logger.info(f + " file deleted");
-                        }
-                        ObjectMapper mapper = new ObjectMapper();
-                        JsonNode node = mapper.readValue(mapper.writeValueAsString(out).replaceAll("\"", "").replaceAll("'", "\""), JsonNode.class);
-
-                        response.put("data", node.get("data"));
-                        response.put("minK", node.get("minK"));
-                        return new ResponseEntity<>(response, HttpStatus.OK);
-                    } else {
-                        File f = new File(strPath);
-                        if (f.delete()) {
-                            logger.info(f + " file deleted");
-                        }
-                        errorMessage = "An error occurred while executing the file. Please check the file format.";
-                        logger.error(errorMessage);
-                        response.put("error", errorMessage);
-                        return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
+                ProcessBuilder processBuilder = new ProcessBuilder("python3", "/opt/utils/audit-v" + AUDIT_VERSION + ".py", "--input", strPath, "--k", k);
+                processBuilder.redirectErrorStream(true);
+                Process process = processBuilder.start();
+                //this will cause a timeout
+                int exitVal = process.waitFor();
+                logger.info("exitVal " + exitVal);
+                String line;
+                StringBuilder out = new StringBuilder();
+                BufferedReader br = new BufferedReader(new InputStreamReader(process.getInputStream()));
+                if (exitVal == 0) {
+                    while ((line = br.readLine()) != null) {
+                        out.append(line);
                     }
-
-                } catch (IOException | InterruptedException e) {
+                    br.close();
                     File f = new File(strPath);
                     if (f.delete()) {
                         logger.info(f + " file deleted");
                     }
-                    errorMessage = "Timeout exceeded";
+                    ObjectMapper mapper = new ObjectMapper();
+                    JsonNode node = mapper.readValue(mapper.writeValueAsString(out).replaceAll("\"", "").replaceAll("'", "\""), JsonNode.class);
+
+                    response.put("data", node.get("data"));
+                    response.put("minK", node.get("minK"));
+                    return new ResponseEntity<>(response, HttpStatus.OK);
+                } else {
+                    File f = new File(strPath);
+                    if (f.delete()) {
+                        logger.info(f + " file deleted");
+                    }
+                    errorMessage = "An error occurred while executing the file. Please check the file format.";
                     logger.error(errorMessage);
                     response.put("error", errorMessage);
-                    return new ResponseEntity<>(response, HttpStatus.GATEWAY_TIMEOUT);
+                    return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
                 }
+
+            } catch (IOException | InterruptedException e) {
+                File f = new File(strPath);
+                if (f.delete()) {
+                    logger.info(f + " file deleted");
+                }
+                errorMessage = "Timeout exceeded";
+                logger.error(errorMessage);
+                response.put("error", errorMessage);
+                return new ResponseEntity<>(response, HttpStatus.GATEWAY_TIMEOUT);
+            }
         };
 
     }
