@@ -34,7 +34,6 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
-import org.springframework.web.server.ResponseStatusException;
 import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 import org.springframework.web.util.UriComponentsBuilder;
 
@@ -129,7 +128,6 @@ public class MobilityController {
         }
 
         try {
-            String csvDate = null;
             StringBuffer inputBuffer = new StringBuffer();
 
             //anonymization process
@@ -138,8 +136,39 @@ public class MobilityController {
             String path = "/tmp";
             String strPath = path + "/" + fileName;
 
-
             FileUploadUtil.saveFile(fileName, file, Paths.get(path));
+            Scanner input = new Scanner(new File(strPath));
+            int counter = 0;
+            String csvDate;
+            int dateIndex = -1;
+            while(input.hasNextLine() && counter < 2)
+            {
+                String[] nextRecord = input.nextLine().split(",");
+
+                if (counter > 0) {
+                    if (dateIndex < 0){
+                        errorMessage = "datetime not found. Please include the file header.";
+                        logger.error(errorMessage);
+                        return ResponseEntity.badRequest().body(errorMessage);
+                    }
+                    csvDate = nextRecord[dateIndex];
+                    csvDate = csvDate.split(" ")[0];
+                    if (!GenericValidator.isDate(csvDate, DATE_FORMAT, true)) {
+                        errorMessage = "datetime must be yyyy-MM-dd HH:mm:ss format";
+                        logger.error(errorMessage);
+                        return ResponseEntity.badRequest().body(errorMessage);
+                    }
+                }else{
+                    dateIndex = Arrays.asList(nextRecord).indexOf(START_TIME);
+                    if (dateIndex < 0) {
+                        dateIndex = Arrays.asList(nextRecord).indexOf("start_time");
+                    }
+
+                }
+                counter++;
+            }
+            input.close();
+
             fileName = "dataset-" + uuid + ".csv";
             String strOutPath = path + "/" + fileName;
 
@@ -154,23 +183,10 @@ public class MobilityController {
             int exitVal = process.waitFor();
             logger.info("exitVal " + exitVal);
             if (exitVal == 0) {
-                int dateIndex = -1;
                 String line;
                 BufferedReader br = new BufferedReader(new FileReader(strOutPath));
                 long i = 0;
                 while ((line = br.readLine()) != null) {
-                    if (i == 0 || dateIndex < 0) {
-                        if (!line.contains("_id")) {
-                            continue;
-                        }
-                        String[] nextRecord = line.split(",");
-                        dateIndex = Arrays.asList(nextRecord).indexOf(START_TIME);
-                        if (dateIndex < 0) {
-                            dateIndex = Arrays.asList(nextRecord).indexOf("start_time");
-                        }
-
-                    }
-
                     inputBuffer.append(line);
                     inputBuffer.append('\n');
 
@@ -205,18 +221,24 @@ public class MobilityController {
                         .body(resource);
 
             } else {
-                InputStream inputStream = new FileInputStream(fi);
+                try(InputStream inputStream = new FileInputStream(fi)) {
 
-                File f = new File(strPath);
-                if (f.delete()) {
-                    logger.info(f + " file deleted");
+                    File f = new File(strPath);
+                    if (f.delete()) {
+                        logger.info(f + " file deleted");
+                    }
+                    File fOut = new File(strOutPath);
+                    if (fOut.delete()) {
+                        logger.info(fOut + " file deleted");
+                    }
+                    String text = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
+
+                    return ResponseEntity.internalServerError().body(text);
+                }catch(IOException e){
+                    errorMessage = e.getMessage();
+                    logger.error(errorMessage);
+                    return ResponseEntity.internalServerError().body(errorMessage);
                 }
-                File fOut = new File(strOutPath);
-                if (fOut.delete()) {
-                    logger.info(fOut + " file deleted");
-                }
-                String text = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
-                return ResponseEntity.internalServerError().body(text);
 
             }
         } catch (IOException | InterruptedException e) {
@@ -436,7 +458,6 @@ public class MobilityController {
 
 
         try {
-            String csvDate = null;
             StringBuffer inputBuffer = new StringBuffer();
 
             //anonymization process
@@ -445,6 +466,38 @@ public class MobilityController {
             String strPath = path + "/" + fileName;
 
             FileUploadUtil.saveFile(fileName, file, Paths.get(path));
+            Scanner input = new Scanner(new File(strPath));
+            int counter = 0;
+            String csvDate = null;
+            int dateIndex = -1;
+            while(input.hasNextLine() && counter < 2)
+            {
+                String[] nextRecord = input.nextLine().split(",");
+
+                if (counter > 0) {
+                    if (dateIndex < 0){
+                        errorMessage = "datetime not found. Please include the file header.";
+                        logger.error(errorMessage);
+                        return ResponseEntity.badRequest().body(errorMessage);
+                    }
+                    csvDate = nextRecord[dateIndex];
+                    csvDate = csvDate.split(" ")[0];
+                    if (!GenericValidator.isDate(csvDate, DATE_FORMAT, true)) {
+                        errorMessage = "datetime must be yyyy-MM-dd HH:mm:ss format";
+                        logger.error(errorMessage);
+                        return ResponseEntity.badRequest().body(errorMessage);
+                    }
+                }else{
+                    dateIndex = Arrays.asList(nextRecord).indexOf(START_TIME);
+                    if (dateIndex < 0) {
+                        dateIndex = Arrays.asList(nextRecord).indexOf("start_time");
+                    }
+
+                }
+                counter++;
+            }
+            input.close();
+
             fileName = "dataset-" + uuid + "-.csv";
             String strOutPath = path + "/" + fileName;
 
@@ -460,35 +513,12 @@ public class MobilityController {
             int exitVal = process.waitFor();
             logger.info("exitVal " + exitVal);
             if (exitVal == 0) {
-                int dateIndex = -1;
                 String line;
                 long i = 0;
                 BufferedReader br = new BufferedReader(new FileReader(strOutPath));
                 while ((line = br.readLine()) != null) {
-                    if (i == 0 || dateIndex < 0) {
-                        if (!line.contains("_id")) {
-                            continue;
-                        }
-                        String[] nextRecord = line.split(",");
-                        dateIndex = Arrays.asList(nextRecord).indexOf(START_TIME);
-                        if (dateIndex < 0) {
-                            dateIndex = Arrays.asList(nextRecord).indexOf("start_time");
-                        }
-                    }
-
                     inputBuffer.append(line);
                     inputBuffer.append('\n');
-
-                    if (dateIndex > 0 && i == 1) {
-                        csvDate = line.split(",")[dateIndex];
-                        csvDate = csvDate.split(" ")[0];
-                        if (!GenericValidator.isDate(csvDate, DATE_FORMAT, true)) {
-                            errorMessage = "first_time_seen must be yyyy-MM-dd HH:mm:ss format";
-                            logger.error(errorMessage);
-                            return ResponseEntity.internalServerError().body(errorMessage);
-                        }
-                    }
-                    i++;
                 }
 
                 if (csvDate != null) {
@@ -534,14 +564,19 @@ public class MobilityController {
                 }
 
             } else {
-                InputStream inputStream = new FileInputStream(fi);
+                try(InputStream inputStream = new FileInputStream(fi)) {
 
-                File f = new File(strPath);
-                if (f.delete()) {
-                    logger.info(f + " file deleted");
+                    File f = new File(strPath);
+                    if (f.delete()) {
+                        logger.info(f + " file deleted");
+                    }
+                    String text = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
+                    return ResponseEntity.internalServerError().body(text);
+                }catch(IOException e){
+                    errorMessage = e.getMessage();
+                    logger.error(errorMessage);
+                    return ResponseEntity.internalServerError().body(errorMessage);
                 }
-                String text = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
-                return ResponseEntity.internalServerError().body(text);
             }
 
         } catch (IOException | InterruptedException e) {
@@ -1047,6 +1082,39 @@ public class MobilityController {
 
             try {
                 FileUploadUtil.saveFile(fileName, file, Paths.get(path));
+                Scanner input = new Scanner(new File(strPath));
+                int counter = 0;
+                String csvDate;
+                int dateIndex = -1;
+                while(input.hasNextLine() && counter < 2)
+                {
+                    String[] nextRecord = input.nextLine().split(",");
+
+                    if (counter > 0) {
+                        if (dateIndex < 0){
+                            errorMessage = "datetime not found. Please include the file header.";
+                            logger.error(errorMessage);
+                            response.put("error", errorMessage);
+                            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+                        }
+                        csvDate = nextRecord[dateIndex];
+                        csvDate = csvDate.split(" ")[0];
+                        if (!GenericValidator.isDate(csvDate, DATE_FORMAT, true)) {
+                            errorMessage = "datetime must be yyyy-MM-dd HH:mm:ss format";
+                            logger.error(errorMessage);
+                            response.put("error", errorMessage);
+                            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+                        }
+                    }else{
+                        dateIndex = Arrays.asList(nextRecord).indexOf(START_TIME);
+                        if (dateIndex < 0) {
+                            dateIndex = Arrays.asList(nextRecord).indexOf("start_time");
+                        }
+
+                    }
+                    counter++;
+                }
+                input.close();
 
                 ProcessBuilder processBuilder = new ProcessBuilder("python3", "/opt/utils/audit-v" + AUDIT_VERSION + ".py", "--input", strPath, "--k", k);
                 processBuilder.redirectErrorStream(true);
@@ -1088,7 +1156,10 @@ public class MobilityController {
                 if (f.delete()) {
                     logger.info(f + " file deleted");
                 }
-                errorMessage = "Timeout exceeded";
+                errorMessage = e.getMessage();
+                if (errorMessage == null){
+                    errorMessage = "Timeout exceeded";
+                }
                 logger.error(errorMessage);
                 response.put("error", errorMessage);
                 return new ResponseEntity<>(response, HttpStatus.GATEWAY_TIMEOUT);
