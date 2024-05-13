@@ -519,6 +519,7 @@ public class MobilityController {
                 while ((line = br.readLine()) != null) {
                     inputBuffer.append(line);
                     inputBuffer.append('\n');
+                    i++;
                 }
 
                 if (csvDate != null) {
@@ -652,6 +653,38 @@ public class MobilityController {
             String strPath = path + "/" + fileName;
 
             FileUploadUtil.saveFile(fileName, file, Paths.get(path));
+            Scanner input = new Scanner(new File(strPath));
+            int counter = 0;
+            int dateIndex = -1;
+            while(input.hasNextLine() && counter < 2)
+            {
+                String[] nextRecord = input.nextLine().split(",");
+
+                if (counter > 0) {
+                    if (dateIndex < 0){
+                        errorMessage = "datetime not found. Please include the file header.";
+                        logger.error(errorMessage);
+                        return ResponseEntity.badRequest().body(errorMessage);
+                    }
+                    csvDate = nextRecord[dateIndex];
+                    csvDate = csvDate.split(" ")[0];
+                    if (!GenericValidator.isDate(csvDate, DATE_FORMAT, true)) {
+                        errorMessage = "datetime must be yyyy-MM-dd HH:mm:ss format";
+                        logger.error(errorMessage);
+                        return ResponseEntity.badRequest().body(errorMessage);
+                    }
+                }else{
+                    dateIndex = Arrays.asList(nextRecord).indexOf(START_TIME);
+                    if (dateIndex < 0) {
+                        dateIndex = Arrays.asList(nextRecord).indexOf("start_time");
+                    }
+
+                }
+                counter++;
+            }
+            input.close();
+
+
             fileName = "dataset-" + uuid + "-.csv";
             String strOutPath = path + "/" + fileName;
 
@@ -667,34 +700,12 @@ public class MobilityController {
             int exitVal = process.waitFor();
             logger.info("exitVal " + exitVal);
             if (exitVal == 0) {
-                int dateIndex = -1;
                 String line;
                 long i = 0;
                 BufferedReader br = new BufferedReader(new FileReader(strOutPath));
                 while ((line = br.readLine()) != null) {
-                    if (i == 0 || dateIndex < 0) {
-                        if (!line.contains("_id")) {
-                            continue;
-                        }
-                        String[] nextRecord = line.split(",");
-                        dateIndex = Arrays.asList(nextRecord).indexOf(START_TIME);
-                        if (dateIndex < 0) {
-                            dateIndex = Arrays.asList(nextRecord).indexOf("start_time");
-                        }
-                    }
-
                     inputBuffer.append(line);
                     inputBuffer.append('\n');
-
-                    if (dateIndex > 0 && i == 1) {
-                        csvDate = line.split(",")[dateIndex];
-                        csvDate = csvDate.split(" ")[0];
-                        if (!GenericValidator.isDate(csvDate, DATE_FORMAT, true)) {
-                            errorMessage = "first_time_seen must be yyyy-MM-dd HH:mm:ss format";
-                            logger.error(errorMessage);
-                            return ResponseEntity.badRequest().body(errorMessage);
-                        }
-                    }
                     i++;
                 }
 
