@@ -10,7 +10,7 @@
     </parent>
     <groupId>com.utip-dam</groupId>
     <artifactId>Internal</artifactId>
-    <version>0.0.2-SNAPSHOT</version>
+    <version>0.0.1-SNAPSHOT</version>
     <packaging>war</packaging>
     <name>Internal</name>
     <description>Internal</description>
