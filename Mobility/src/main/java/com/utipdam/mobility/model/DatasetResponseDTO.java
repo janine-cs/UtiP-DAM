@@ -22,6 +22,13 @@ public class DatasetResponseDTO {
     private Long userId;
     private Integer downloadCount;
     private String updatedOn;
+    private boolean publishMDS = false;
+    private String publishedOn;
+    private Double fee1d;
+    private Double fee3mo;
+    private Double fee6mo;
+    private Double fee12mo;
+
 
     public DatasetResponseDTO() {
     }
@@ -30,7 +37,8 @@ public class DatasetResponseDTO {
                               String countryCode, String city, Double fee, Boolean publish,
                               Organization organization, UUID datasetDefinitionId,
                               String updatedOn, Long dataPoints, List<DatasetListDTO> datasets,
-                              Long userId, Boolean internal, Integer downloadCount) {
+                              Long userId, Boolean internal, Integer downloadCount, Boolean publishMDS,
+                              String publishedOn, Double fee1d, Double fee3mo, Double fee6mo, Double fee12mo) {
         this.datasetDefinitionId = datasetDefinitionId;
         this.name = name;
         this.description = description;
@@ -45,5 +53,13 @@ public class DatasetResponseDTO {
         this.userId = userId;
         this.downloadCount = downloadCount;
         this.updatedOn = updatedOn;
+        this.publishMDS = publishMDS;
+        this.publishedOn = publishedOn;
+        this.fee1d = fee1d;
+        this.fee3mo = fee3mo;
+        this.fee6mo = fee6mo;
+        this.fee12mo = fee12mo;
+
+
     }
 }

@@ -22,6 +22,9 @@ import com.utipdam.mobility.model.repository.RoleRepository;
 import com.utipdam.mobility.model.repository.UserRepository;
 import org.apache.commons.io.filefilter.WildcardFileFilter;
 import org.apache.commons.validator.GenericValidator;
+import org.json.JSONArray;
+import org.json.JSONException;
+import org.json.JSONObject;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -202,7 +205,24 @@ public class MobilityController {
                 ContentDisposition contentDisposition = ContentDisposition.builder("inline")
                         .filename("dataset.csv")
                         .build();
+
                 responseHeaders.setContentDisposition(contentDisposition);
+
+                String message;
+                JSONObject json = new JSONObject();
+                JSONArray array = new JSONArray();
+                JSONObject item = new JSONObject();
+                item.put("No. of records deleted ", 0);
+                item.put("Percentage of records deleted ", 0.0);
+                item.put("No. of information deleted ", 0);
+                item.put("Percentage of information deleted ", 0.0);
+                array.put(item);
+
+                json.put("data", array);
+
+                message = json.toString();
+
+                responseHeaders.add("Performance-Metrics", message);
                 InputStream inputStream = new ByteArrayInputStream(inputStr.getBytes(StandardCharsets.UTF_8));
                 InputStreamResource resource = new InputStreamResource(inputStream);
                 br.close();
@@ -245,6 +265,8 @@ public class MobilityController {
             errorMessage = e.getMessage();
             logger.error(errorMessage);
             return ResponseEntity.internalServerError().body(errorMessage);
+        } catch (JSONException e) {
+            throw new RuntimeException(e);
         }
     }
 
@@ -550,6 +572,24 @@ public class MobilityController {
                             .filename(fileName)
                             .build();
                     responseHeaders.setContentDisposition(contentDisposition);
+
+                    String message;
+                    JSONObject json = new JSONObject();
+                    JSONArray array = new JSONArray();
+                    JSONObject item = new JSONObject();
+                    item.put("No. of records deleted ", 0);
+                    item.put("Percentage of records deleted ", 0.0);
+                    item.put("No. of information deleted ", 0);
+                    item.put("Percentage of information deleted ", 0.0);
+                    array.put(item);
+
+                    json.put("data", array);
+
+                    message = json.toString();
+
+                    responseHeaders.add("Performance-Metrics", message);
+
+
                     InputStream inputStream = new ByteArrayInputStream(inputStr.getBytes(StandardCharsets.UTF_8));
                     InputStreamResource resource = new InputStreamResource(inputStream);
                     br.close();
@@ -584,6 +624,8 @@ public class MobilityController {
             errorMessage = e.getMessage();
             logger.error(errorMessage);
             return ResponseEntity.internalServerError().body(errorMessage);
+        } catch (JSONException e) {
+            throw new RuntimeException(e);
         }
 
         errorMessage = "An error occurred while processing your request";

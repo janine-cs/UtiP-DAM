@@ -68,7 +68,8 @@ public class DatasetController {
                             .mapToLong(DatasetListDTO::getDataPoints)
                             .average()
                             .orElse(0L), dsList, d.getUserId(), d.getInternal(),
-                            dlList.stream().mapToInt(DownloadsByDay::getCount).sum());
+                            dlList.stream().mapToInt(DownloadsByDay::getCount).sum(),
+                            d.getPublishMDS(), d.getPublishedOn(), d.getFee1d(), d.getFee3mo(), d.getFee6mo(), d.getFee12mo());
 
                 });
 
@@ -118,7 +119,8 @@ public class DatasetController {
                             .mapToLong(DatasetListDTO::getDataPoints)
                             .average()
                             .orElse(0L), dsList, d.getUserId(), d.getInternal(),
-                            dlList.stream().mapToInt(DownloadsByDay::getCount).sum());
+                            dlList.stream().mapToInt(DownloadsByDay::getCount).sum(),
+                            d.getPublishMDS(), d.getPublishedOn(), d.getFee1d(), d.getFee3mo(), d.getFee6mo(), d.getFee12mo());
 
                 });
 
@@ -203,7 +205,8 @@ public class DatasetController {
                     .mapToLong(DatasetListDTO::getDataPoints)
                     .average()
                     .orElse(0L), dsList, d.getUserId(), d.getInternal(),
-                    dlList.stream().mapToInt(DownloadsByDay::getCount).sum()));
+                    dlList.stream().mapToInt(DownloadsByDay::getCount).sum(),
+                    d.getPublishMDS(), d.getPublishedOn(), d.getFee1d(), d.getFee3mo(), d.getFee6mo(), d.getFee12mo()));
             return new ResponseEntity<>(response, HttpStatus.OK);
         } else {
             return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);

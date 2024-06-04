@@ -11,6 +11,8 @@ import com.utipdam.mobility.model.service.OrganizationService;
 import com.utipdam.mobility.model.service.ServerService;
 import org.springframework.beans.factory.annotation.Autowired;
 
+import java.text.SimpleDateFormat;
+import java.util.Calendar;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -77,6 +79,12 @@ public class DatasetDefinitionBusiness {
         }else{
             ds.setUserId(dataset.getUserId());
         }
+        ds.setPublishMDS(dataset.isPublishMDS());
+        ds.setPublishedOn(dataset.isPublish() ? new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(Calendar.getInstance().getTime()) : null);
+        ds.setFee1d(dataset.getFee1d());
+        ds.setFee3mo(dataset.getFee3mo());
+        ds.setFee6mo(dataset.getFee6mo());
+        ds.setFee12mo(dataset.getFee12mo());
 
         if (dataset.getOrganization() != null){
             Organization response = organizationService.findByNameAndEmail(dataset.getOrganization().getName(), dataset.getOrganization().getEmail());
@@ -136,6 +144,12 @@ public class DatasetDefinitionBusiness {
             }else{
                 data.setUserId(dataset.getUserId());
             }
+            data.setPublishMDS(dataset.isPublishMDS());
+            data.setPublishedOn(dataset.isPublish() && dataset.getPublishedOn() == null ? new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(Calendar.getInstance().getTime()) : ds.get().getPublishedOn());
+            data.setFee1d(dataset.getFee1d() == null ? ds.get().getFee1d() : dataset.getFee1d());
+            data.setFee3mo(dataset.getFee3mo() == null ? ds.get().getFee3mo() : dataset.getFee3mo());
+            data.setFee6mo(dataset.getFee6mo() == null ? ds.get().getFee6mo() : dataset.getFee6mo());
+            data.setFee12mo(dataset.getFee12mo() == null ? ds.get().getFee12mo() : dataset.getFee12mo());
 
             ds.get().update(data);
             return datasetDefinitionService.save(ds.get());

@@ -18,6 +18,12 @@ public class DatasetDefinition {
     private Organization organization;
     private Server server;
     private Long userId;
+    private Boolean publishMDS;
+    private String publishedOn;
+    private Double fee1d;
+    private Double fee3mo;
+    private Double fee6mo;
+    private Double fee12mo;
 
     public DatasetDefinition() {
     }
