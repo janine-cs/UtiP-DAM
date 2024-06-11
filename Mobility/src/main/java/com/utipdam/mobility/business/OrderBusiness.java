@@ -51,6 +51,10 @@ public class OrderBusiness {
         return paymentDetailService.findById(paymentId);
     }
 
+    public PaymentDetail getPaymentByUserId(Long userId) {
+        return paymentDetailService.findByUserId(userId);
+    }
+
     public PaymentDetail getPaymentDetailByOrderId(Integer orderId) {
         return paymentDetailService.findByOrderId(orderId);
     }

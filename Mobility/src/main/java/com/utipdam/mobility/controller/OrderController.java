@@ -1,9 +1,11 @@
 package com.utipdam.mobility.controller;
 
 import com.utipdam.mobility.business.OrderBusiness;
+import com.utipdam.mobility.config.AuthTokenFilter;
 import com.utipdam.mobility.model.OrderDTO;
 import com.utipdam.mobility.model.PaymentDTO;
 import com.utipdam.mobility.model.entity.*;
+import com.utipdam.mobility.model.repository.UserRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -19,6 +21,10 @@ public class OrderController {
 
     @Autowired
     private OrderBusiness orderBusiness;
+
+    @Autowired
+    UserRepository userRepository;
+
 
     @GetMapping("/orders")
     public ResponseEntity<Map<String, Object>> getAllOrganizations(@RequestParam Long userId) {
@@ -82,7 +88,26 @@ public class OrderController {
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
 
-    @PutMapping("/payment/{id}")
+    @GetMapping("/invoices")
+    public ResponseEntity<Map<String, Object>> getInvoices() {
+        Optional<User> userOpt = userRepository.findByUsername(AuthTokenFilter.usernameLoggedIn);
+
+        Map<String, Object> response = new HashMap<>();
+        if (userOpt.isPresent()) {
+            User userData = userOpt.get();
+            PaymentDetail p = orderBusiness.getPaymentByUserId(userData.getId());
+            if (p == null) {
+                return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+            }else{
+                response.put("data", p);
+                return new ResponseEntity<>(response, HttpStatus.OK);
+            }
+        } else {
+            return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+        }
+    }
+
+    @PutMapping("/invoice/{id}")
     public ResponseEntity<Map<String, Object>> paymentConfirm(@PathVariable Integer id) {
         Map<String, Object> response = new HashMap<>();
 

@@ -32,8 +32,8 @@ public class ServerService {
         return serverRepository.findAll();
     }
 
-    public Server save(Server organization) {
-        return serverRepository.save(organization);
+    public Server save(Server server) {
+        return serverRepository.save(server);
     }
 
     public void delete(Integer id) {

@@ -21,6 +21,9 @@ public class PaymentDetailService {
     public Optional<PaymentDetail> findById(Integer id) {
         return paymentDetailRepository.findById(id);
     }
+    public PaymentDetail findByUserId(Long userId) {
+        return paymentDetailRepository.findByUserId(userId);
+    }
 
     public PaymentDetail findByOrderId(Integer orderId) {
         return paymentDetailRepository.findByOrderId(orderId);
