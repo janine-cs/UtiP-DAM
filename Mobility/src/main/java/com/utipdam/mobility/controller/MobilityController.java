@@ -189,6 +189,10 @@ public class MobilityController {
                 String line;
                 BufferedReader br = new BufferedReader(new FileReader(strOutPath));
                 long i = 0;
+
+                String firstLine = br.readLine();
+                String metrics = firstLine.contains("{'data':") ? firstLine.replaceAll("'", "\"") : null;
+
                 while ((line = br.readLine()) != null) {
                     inputBuffer.append(line);
                     inputBuffer.append('\n');
@@ -208,21 +212,7 @@ public class MobilityController {
 
                 responseHeaders.setContentDisposition(contentDisposition);
 
-                String message;
-                JSONObject json = new JSONObject();
-                JSONArray array = new JSONArray();
-                JSONObject item = new JSONObject();
-                item.put("No. of records deleted ", 0);
-                item.put("Percentage of records deleted ", 0.0);
-                item.put("No. of information deleted ", 0);
-                item.put("Percentage of information deleted ", 0.0);
-                array.put(item);
-
-                json.put("data", array);
-
-                message = json.toString();
-
-                responseHeaders.add("Performance-Metrics", message);
+                responseHeaders.add("Performance-Metrics", metrics);
                 InputStream inputStream = new ByteArrayInputStream(inputStr.getBytes(StandardCharsets.UTF_8));
                 InputStreamResource resource = new InputStreamResource(inputStream);
                 br.close();
@@ -265,8 +255,6 @@ public class MobilityController {
             errorMessage = e.getMessage();
             logger.error(errorMessage);
             return ResponseEntity.internalServerError().body(errorMessage);
-        } catch (JSONException e) {
-            throw new RuntimeException(e);
         }
     }
 
@@ -538,6 +526,9 @@ public class MobilityController {
                 String line;
                 long i = 0;
                 BufferedReader br = new BufferedReader(new FileReader(strOutPath));
+                String firstLine = br.readLine();
+                String metrics = firstLine.contains("{'data':") ? firstLine.replaceAll("'", "\"") : null;
+
                 while ((line = br.readLine()) != null) {
                     inputBuffer.append(line);
                     inputBuffer.append('\n');
@@ -572,22 +563,7 @@ public class MobilityController {
                             .filename(fileName)
                             .build();
                     responseHeaders.setContentDisposition(contentDisposition);
-
-                    String message;
-                    JSONObject json = new JSONObject();
-                    JSONArray array = new JSONArray();
-                    JSONObject item = new JSONObject();
-                    item.put("No. of records deleted ", 0);
-                    item.put("Percentage of records deleted ", 0.0);
-                    item.put("No. of information deleted ", 0);
-                    item.put("Percentage of information deleted ", 0.0);
-                    array.put(item);
-
-                    json.put("data", array);
-
-                    message = json.toString();
-
-                    responseHeaders.add("Performance-Metrics", message);
+                    responseHeaders.add("Performance-Metrics", metrics);
 
 
                     InputStream inputStream = new ByteArrayInputStream(inputStr.getBytes(StandardCharsets.UTF_8));
@@ -624,8 +600,6 @@ public class MobilityController {
             errorMessage = e.getMessage();
             logger.error(errorMessage);
             return ResponseEntity.internalServerError().body(errorMessage);
-        } catch (JSONException e) {
-            throw new RuntimeException(e);
         }
 
         errorMessage = "An error occurred while processing your request";
@@ -745,6 +719,9 @@ public class MobilityController {
                 String line;
                 long i = 0;
                 BufferedReader br = new BufferedReader(new FileReader(strOutPath));
+                String firstLine = br.readLine();
+                String metrics = firstLine.contains("{'data':") ? firstLine.replaceAll("'", "\"") : null;
+
                 while ((line = br.readLine()) != null) {
                     inputBuffer.append(line);
                     inputBuffer.append('\n');
@@ -781,6 +758,8 @@ public class MobilityController {
                                 .filename(fileName)
                                 .build();
                         responseHeaders.setContentDisposition(contentDisposition);
+                        responseHeaders.add("Performance-Metrics", metrics);
+
                         InputStream inputStream = new ByteArrayInputStream(inputStr.getBytes(StandardCharsets.UTF_8));
                         InputStreamResource resource = new InputStreamResource(inputStream);
                         br.close();
@@ -798,10 +777,7 @@ public class MobilityController {
                         logger.error(errorMessage);
                         return ResponseEntity.notFound().build();
                     }
-
-
                 }
-
             } else {
                 InputStream inputStream = new FileInputStream(fi);
                 InputStreamResource resource = new InputStreamResource(inputStream);
