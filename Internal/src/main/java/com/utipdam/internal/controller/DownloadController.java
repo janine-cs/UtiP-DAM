@@ -25,7 +25,7 @@ public class DownloadController {
 
         String path = "/data/sites/site6502/analytics/";
         File dir = new File(path);
-        FileFilter fileFilter = new WildcardFileFilter("*daily*");
+        FileFilter fileFilter = new WildcardFileFilter("*_visitor-count_daily_*");
         File[] files = dir.listFiles(fileFilter);
         if (files != null) {
             Arrays.sort(files, Comparator.comparingLong(File::lastModified).reversed());
