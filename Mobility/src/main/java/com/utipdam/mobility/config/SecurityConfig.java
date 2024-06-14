@@ -73,6 +73,8 @@ public class SecurityConfig { // extends WebSecurityConfigurerAdapter {
                                 .requestMatchers(HttpMethod.GET, "/vendor").authenticated()
                                 .requestMatchers(HttpMethod.POST, "/vendor").authenticated()
                                 .requestMatchers(HttpMethod.PUT, "/vendor/*").authenticated()
+                                .requestMatchers(HttpMethod.POST, "/order").authenticated()
+                                .requestMatchers(HttpMethod.POST, "/checkout").authenticated()
                                 .requestMatchers("/**").permitAll().anyRequest().authenticated()
                 );
 

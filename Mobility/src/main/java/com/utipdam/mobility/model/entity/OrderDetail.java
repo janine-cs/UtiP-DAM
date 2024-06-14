@@ -38,4 +38,14 @@ public class OrderDetail {
         this.total = total;
     }
 
+    public void update(OrderDetail orderDetail) {
+        if (orderDetail.getPaymentId() != null) {
+            this.paymentId = orderDetail.getPaymentId();
+        }
+        if (orderDetail.getTotal() != null) {
+            this.total = orderDetail.getTotal();
+        }
+        this.modifiedAt = new Timestamp(System.currentTimeMillis());
+    }
+
 }

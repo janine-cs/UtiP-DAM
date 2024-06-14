@@ -25,6 +25,10 @@ public class OrderDetailService {
     public OrderDetail findByUserId(Long userId) {
         return orderDetailRepository.findByUserId(userId);
     }
+
+    public OrderDetail findByPendingOrderByUserId(Long userId) {
+        return orderDetailRepository.findByUserId(userId);
+    }
     public OrderDetail save(OrderDetail orderDetail) {
         return orderDetailRepository.save(orderDetail);
     }

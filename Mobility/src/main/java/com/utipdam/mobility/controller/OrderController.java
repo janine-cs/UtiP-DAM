@@ -1,5 +1,7 @@
 package com.utipdam.mobility.controller;
 
+import com.utipdam.mobility.business.DatasetBusiness;
+import com.utipdam.mobility.business.DatasetDefinitionBusiness;
 import com.utipdam.mobility.business.OrderBusiness;
 import com.utipdam.mobility.config.AuthTokenFilter;
 import com.utipdam.mobility.model.OrderDTO;
@@ -25,9 +27,11 @@ public class OrderController {
     @Autowired
     UserRepository userRepository;
 
+    @Autowired
+    private DatasetDefinitionBusiness datasetDefinitionBusiness;
 
     @GetMapping("/orders")
-    public ResponseEntity<Map<String, Object>> getAllOrganizations(@RequestParam Long userId) {
+    public ResponseEntity<Map<String, Object>> getAll(@RequestParam Long userId) {
         Map<String, Object> response = new HashMap<>();
 
         response.put("data", orderBusiness.getOrderDetailByUserId(userId));
@@ -43,50 +47,86 @@ public class OrderController {
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
 
-    @PostMapping("/order")
+    @PostMapping("/checkout")
     public ResponseEntity<Map<String, Object>> order(@RequestBody OrderDTO order) {
         Map<String, Object> response = new HashMap<>();
 
-        OrderDetail orderDetail = orderBusiness.getOrderDetailByUserId(order.getUserId());
-        if (orderDetail == null) {
-            orderDetail = new OrderDetail(order.getUserId(), null, null);
-            OrderDetail orderDetailObj = orderBusiness.saveOrderDetail(orderDetail);
-            OrderItem orderItem = new OrderItem(order.getDatasetId(), orderDetailObj.getId());
-            response.put("data", orderBusiness.saveOrderItem(orderItem));
+        Optional<User> user = userRepository.findByUsername(AuthTokenFilter.usernameLoggedIn);
+        user.ifPresent(value -> order.setUserId(value.getId()));
 
-        } else {
+        OrderDetail orderDetail = new OrderDetail(order.getUserId(), null, null);
+        OrderDetail orderDetailSave = orderBusiness.saveOrderDetail(orderDetail);
 
-            orderDetail = orderBusiness.getOrderDetailByUserId(order.getUserId());
+        OrderItem orderItem = new OrderItem(order.getDatasetDefinitionId(), orderDetail.getId(),
+                order.getStartDate(), order.getEndDate(), order.isOneDay(), order.isPastDate(), order.isFutureDate(), order.getMonthLicense());
+        response.put("data", orderBusiness.saveOrderItem(orderItem));
 
-            OrderItem orderItem = new OrderItem(order.getDatasetId(), orderDetail.getId());
-            response.put("data", orderBusiness.saveOrderItem(orderItem));
+        Optional<DatasetDefinition> dtOpt = datasetDefinitionBusiness.getById(order.getDatasetDefinitionId());
+        double total = 0D;
+        if (dtOpt.isPresent()){
+            DatasetDefinition dt = dtOpt.get();
+            if (order.isOneDay()){
+                total += (dt.getFee1d() == null ? 0D : dt.getFee1d());
+            }else{
+                if (order.isPastDate()){
+                    total +=  (dt.getFee() == null ? 0D : dt.getFee());
+                }
 
-        }
+                if (order.isFutureDate()){
+                    if (order.getMonthLicense() == 12){
+                        total +=  (dt.getFee12mo() == null ? 0D : dt.getFee12mo());
+                    } else if (order.getMonthLicense() == 6){
+                        total +=  (dt.getFee6mo() == null ? 0D : dt.getFee6mo());
+                    } else{
+                        total +=  (dt.getFee3mo() == null ? 0D : dt.getFee3mo());
+                    }
 
-        return new ResponseEntity<>(response, HttpStatus.OK);
-    }
-
-    @PostMapping("/checkout")
-    public ResponseEntity<Map<String, Object>> payment(@RequestBody PaymentDTO payment) {
-        Map<String, Object> response = new HashMap<>();
-
-        Optional<OrderDetail> orderDetail = orderBusiness.getOrderDetailById(payment.getOrderId());
-
-        if (orderDetail.isPresent()) {
-            PaymentDetail paymentDetail = orderBusiness.getPaymentDetailByOrderId(payment.getOrderId());
-            if (paymentDetail == null) {
-                paymentDetail = new PaymentDetail(payment.getOrderId(), orderDetail.get().getTotal(), payment.getDescription(), "pending");
-            } else {
-                paymentDetail.setAmount(orderDetail.get().getTotal());
-                paymentDetail.setDescription(payment.getDescription());
-                paymentDetail.setStatus("pending");
+                }
             }
 
-            response.put("data", orderBusiness.savePaymentDetail(paymentDetail));
-
         }
+
+        PaymentDetail paymentDetail = new PaymentDetail(orderDetail.getId(), total, order.getDescription(),
+                "PAID", order.getPaypalOrderID(),
+                order.getPayerID(), order.getPaymentID(), order.getPaymentSource());
+        PaymentDetail paymentDetailSave = orderBusiness.savePaymentDetail(paymentDetail);
+
+
+        //Updating order detail
+        Optional<OrderDetail> orderDetailUpdate = orderBusiness.getOrderDetailById(orderDetailSave.getId());
+        if (orderDetailUpdate.isPresent()){
+            OrderDetail od = orderDetailUpdate.get();
+            od.setTotal(total);
+            od.setPaymentId(paymentDetailSave.getId());
+
+            od.update(od);
+            orderBusiness.saveOrderDetail(od);
+        }
+
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
+
+
+//    @PostMapping("/checkout")
+//    public ResponseEntity<Map<String, Object>> payment(@RequestBody PaymentDTO payment) {
+//        Map<String, Object> response = new HashMap<>();
+//        Optional<OrderDetail> orderDetail = orderBusiness.getOrderDetailById(payment.getOrderId());
+//
+//        if (orderDetail.isPresent()) {
+//            PaymentDetail paymentDetail = orderBusiness.getPaymentDetailByOrderId(payment.getOrderId());
+//            if (paymentDetail == null) {
+//                paymentDetail = new PaymentDetail(payment.getOrderId(), orderDetail.get().getTotal(), payment.getDescription(), "pending");
+//            } else {
+//                paymentDetail.setAmount(orderDetail.get().getTotal());
+//                paymentDetail.setDescription(payment.getDescription());
+//                paymentDetail.setStatus("pending");
+//            }
+//
+//            response.put("data", orderBusiness.savePaymentDetail(paymentDetail));
+//
+//        }
+//        return new ResponseEntity<>(response, HttpStatus.OK);
+//    }
 
     @GetMapping("/invoices")
     public ResponseEntity<Map<String, Object>> getInvoices() {
@@ -98,7 +138,7 @@ public class OrderController {
             PaymentDetail p = orderBusiness.getPaymentByUserId(userData.getId());
             if (p == null) {
                 return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
-            }else{
+            } else {
                 response.put("data", p);
                 return new ResponseEntity<>(response, HttpStatus.OK);
             }
