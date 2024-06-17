@@ -15,10 +15,10 @@ public class OrderDTO {
     private boolean oneDay = false;
     private boolean pastDate = false;
     private boolean futureDate = false;
+    private String currency;
     private Integer monthLicense;
-    private String paypalOrderID;
-    private String payerID;
-    private String paymentID;
+    private String paymentId;
+    private String payerId;
     private String paymentSource;
 
     public OrderDTO() {

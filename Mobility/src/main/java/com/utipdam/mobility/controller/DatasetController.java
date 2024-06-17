@@ -67,9 +67,10 @@ public class DatasetController {
                             d.getUpdatedOn(), (long) dsList.stream().filter(o -> o != null && o.getDataPoints() != null)
                             .mapToLong(DatasetListDTO::getDataPoints)
                             .average()
-                            .orElse(0L), dsList, d.getUserId(), d.getInternal(),
+                            .orElse(0L), dsList, d.getUser().getId(), d.getInternal(),
                             dlList.stream().mapToInt(DownloadsByDay::getCount).sum(),
-                            d.getPublishMDS(), d.getPublishedOn(), d.getFee1d(), d.getFee3mo(), d.getFee6mo(), d.getFee12mo());
+                            d.getPublishMDS(), d.getPublishedOn(), d.getFee1d(), d.getFee3mo(), d.getFee6mo(), d.getFee12mo(),
+                            d.getUser().getVendor());
 
                 });
 
@@ -118,9 +119,10 @@ public class DatasetController {
                             d.getUpdatedOn(), (long) dsList.stream().filter(o -> o != null && o.getDataPoints() != null)
                             .mapToLong(DatasetListDTO::getDataPoints)
                             .average()
-                            .orElse(0L), dsList, d.getUserId(), d.getInternal(),
+                            .orElse(0L), dsList, d.getUser().getId(), d.getInternal(),
                             dlList.stream().mapToInt(DownloadsByDay::getCount).sum(),
-                            d.getPublishMDS(), d.getPublishedOn(), d.getFee1d(), d.getFee3mo(), d.getFee6mo(), d.getFee12mo());
+                            d.getPublishMDS(), d.getPublishedOn(), d.getFee1d(), d.getFee3mo(), d.getFee6mo(), d.getFee12mo(),
+                            d.getUser().getVendor());
 
                 });
 
@@ -171,7 +173,7 @@ public class DatasetController {
             Optional<DatasetDefinition> opt = datasetDefinitionBusiness.getById(id);
             if (opt.isPresent()) {
                 DatasetDefinition d = opt.get();
-                if (userData.getId().equals(d.getUserId())) {
+                if (userData.getId().equals(d.getUser().getId())) {
                     response.put("data", datasetDefinitionBusiness.update(id, dataset));
                     return new ResponseEntity<>(response, HttpStatus.OK);
                 } else {
@@ -204,9 +206,10 @@ public class DatasetController {
                     d.getUpdatedOn(), (long) dsList.stream().filter(o -> o != null && o.getDataPoints() != null)
                     .mapToLong(DatasetListDTO::getDataPoints)
                     .average()
-                    .orElse(0L), dsList, d.getUserId(), d.getInternal(),
+                    .orElse(0L), dsList, d.getUser().getId(), d.getInternal(),
                     dlList.stream().mapToInt(DownloadsByDay::getCount).sum(),
-                    d.getPublishMDS(), d.getPublishedOn(), d.getFee1d(), d.getFee3mo(), d.getFee6mo(), d.getFee12mo()));
+                    d.getPublishMDS(), d.getPublishedOn(), d.getFee1d(), d.getFee3mo(), d.getFee6mo(), d.getFee12mo(),
+                    d.getUser().getVendor()));
             return new ResponseEntity<>(response, HttpStatus.OK);
         } else {
             return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
@@ -223,7 +226,7 @@ public class DatasetController {
             Optional<DatasetDefinition> dd = datasetDefinitionBusiness.getById(id);
             if (dd.isPresent()) {
                 DatasetDefinition datasetDef = dd.get();
-                if (userData.getId().equals(datasetDef.getUserId())){
+                if (userData.getId().equals(datasetDef.getUser().getId())){
                     if (datasetDef.getInternal() != null && !datasetDef.getInternal()) {
                         try {
                             FileUtils.deleteDirectory(new File(PATH + "/" + datasetDef.getId()));
@@ -264,7 +267,7 @@ public class DatasetController {
                 Optional<DatasetDefinition> dd = datasetDefinitionBusiness.getById(dataset.getDatasetDefinition().getId());
                 if (dd.isPresent()) {
                     DatasetDefinition datasetDef = dd.get();
-                    if (userData.getId().equals(datasetDef.getUserId())){
+                    if (userData.getId().equals(datasetDef.getUser().getId())){
                         if (datasetDef.getInternal() != null && !datasetDef.getInternal()) {
                             File files = new File(PATH + "/" + datasetDef.getId());
                             if (files.listFiles() != null) {

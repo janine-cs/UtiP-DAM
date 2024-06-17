@@ -1,7 +1,6 @@
 package com.utipdam.mobility.business;
 
 import com.utipdam.mobility.config.BusinessService;
-import com.utipdam.mobility.exception.DefaultException;
 import com.utipdam.mobility.model.entity.Vendor;
 import com.utipdam.mobility.model.service.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,13 +19,6 @@ public class VendorBusiness {
         return vendorService.findAll();
     }
 
-    public Vendor getByNo(String accountNo) {
-        return vendorService.findByAccountNo(accountNo);
-    }
-
-    public Vendor getByName(String name) {
-        return vendorService.findByAccountName(name);
-    }
 
     public Vendor getByUserId(Long userId) {
         return vendorService.findByUserId(userId);

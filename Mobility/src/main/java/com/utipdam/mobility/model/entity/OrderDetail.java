@@ -45,7 +45,6 @@ public class OrderDetail {
         if (orderDetail.getTotal() != null) {
             this.total = orderDetail.getTotal();
         }
-        this.modifiedAt = new Timestamp(System.currentTimeMillis());
     }
 
 }

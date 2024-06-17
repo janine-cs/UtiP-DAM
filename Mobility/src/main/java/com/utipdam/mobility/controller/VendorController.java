@@ -5,6 +5,7 @@ import com.utipdam.mobility.config.AuthTokenFilter;
 import com.utipdam.mobility.model.entity.User;
 import com.utipdam.mobility.model.entity.Vendor;
 import com.utipdam.mobility.model.repository.UserRepository;
+import jakarta.transaction.Transactional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -55,6 +56,7 @@ public class VendorController {
     }
 
     @PostMapping("/vendor")
+    @Transactional
     public ResponseEntity<Map<String, Object>> save(@RequestBody Vendor vendor) {
         Map<String, Object> response = new HashMap<>();
         if (vendor.getAccountNo() == null) {
@@ -72,19 +74,22 @@ public class VendorController {
             response.put("error", "Bank name is required");
             return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
         }
-        Optional<User> user = userRepository.findByUsername(AuthTokenFilter.usernameLoggedIn);
-        user.ifPresent(value -> vendor.setUserId(value.getId()));
-
-        Vendor v = vendorBusiness.getByUserId(vendor.getUserId());
-
-        if (v == null) {
-            response.put("data", vendorBusiness.save(vendor));
-        } else {
-            logger.error("Account no. already exists");
-            return new ResponseEntity<>(HttpStatus.CONFLICT);
+        Optional<User> userOpt = userRepository.findByUsername(AuthTokenFilter.usernameLoggedIn);
+        if (userOpt.isPresent()){
+            User user = userOpt.get();
+            if (user.getVendor() == null) {
+                Vendor vendorSave = vendorBusiness.save(vendor);
+                userRepository.updateVendor(user.getId(), vendorSave.getId());
+                response.put("data", vendorSave);
+            } else {
+                logger.error("Vendor already exists");
+                return new ResponseEntity<>(HttpStatus.CONFLICT);
+            }
+            return new ResponseEntity<>(response, HttpStatus.CREATED);
+        }else{
+            response.put("error", "User not found");
+            return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
         }
-
-        return new ResponseEntity<>(response, HttpStatus.CREATED);
     }
 
     @PutMapping("/vendor")

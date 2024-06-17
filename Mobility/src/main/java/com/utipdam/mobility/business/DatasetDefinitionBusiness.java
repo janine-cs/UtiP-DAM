@@ -6,6 +6,8 @@ import com.utipdam.mobility.model.DatasetDefinitionDTO;
 import com.utipdam.mobility.model.entity.DatasetDefinition;
 import com.utipdam.mobility.model.entity.Organization;
 import com.utipdam.mobility.model.entity.Server;
+import com.utipdam.mobility.model.entity.User;
+import com.utipdam.mobility.model.repository.UserRepository;
 import com.utipdam.mobility.model.service.DatasetDefinitionService;
 import com.utipdam.mobility.model.service.OrganizationService;
 import com.utipdam.mobility.model.service.ServerService;
@@ -29,6 +31,8 @@ public class DatasetDefinitionBusiness {
     @Autowired
     private ServerService serverService;
 
+    @Autowired
+    UserRepository userRepository;
 
     private long DEFAULT_USER = 3; //admin
     private String DEFAULT_SERVER = "lucky";
@@ -74,11 +78,15 @@ public class DatasetDefinitionBusiness {
                 ds.setServer(sv);
             }
         }
+        Optional<User> userOpt;
+        User user;
         if (dataset.getUserId() == null){
-            ds.setUserId(DEFAULT_USER);
+            userOpt = userRepository.findById(DEFAULT_USER);
         }else{
-            ds.setUserId(dataset.getUserId());
+            userOpt = userRepository.findById(dataset.getUserId());
         }
+        user = userOpt.get();
+        ds.setUser(user);
         ds.setPublishMDS(dataset.isPublishMDS());
         ds.setPublishedOn(dataset.isPublish() ? new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(Calendar.getInstance().getTime()) : null);
         ds.setFee1d(dataset.getFee1d());
@@ -139,11 +147,15 @@ public class DatasetDefinitionBusiness {
                     data.setServer(sv);
                 }
             }
+            Optional<User> userOpt;
+            User user;
             if (dataset.getUserId() == null){
-                data.setUserId(DEFAULT_USER);
+                userOpt = userRepository.findById(DEFAULT_USER);
             }else{
-                data.setUserId(dataset.getUserId());
+                userOpt = userRepository.findById(dataset.getUserId());
             }
+            user = userOpt.get();
+            data.setUser(user);
             data.setPublishMDS(dataset.isPublishMDS());
             data.setPublishedOn(dataset.isPublish() && dataset.getPublishedOn() == null ? new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(Calendar.getInstance().getTime()) : ds.get().getPublishedOn());
             data.setFee1d(dataset.getFee1d() == null ? ds.get().getFee1d() : dataset.getFee1d());

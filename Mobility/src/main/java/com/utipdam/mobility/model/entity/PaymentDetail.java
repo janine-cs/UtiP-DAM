@@ -3,6 +3,7 @@ package com.utipdam.mobility.model.entity;
 import jakarta.persistence.*;
 import lombok.Data;
 
+import java.sql.Date;
 import java.sql.Timestamp;
 
 @Entity(name = "payment_detail")
@@ -25,23 +26,11 @@ public class PaymentDetail {
     @Column(name = "status")
     private String status;
 
-    @Column(name = "created_at")
-    private Timestamp createdAt = new Timestamp(System.currentTimeMillis());
-
-    @Column(name = "modified_at")
-    private Timestamp modifiedAt;
-
-    @Column(name = "stripe_email")
-    private String stripeEmail;
-
     @Column(name = "currency")
-    private Currency currency;
+    private String currency;
 
     @Column(name = "balance_transaction")
     private String balanceTransaction;
-
-    @Column(name = "dataset_activation_key")
-    private String datasetActivationKey;
 
     @Column(name = "paypal_order_id")
     private String paypalOrderId;
@@ -55,22 +44,56 @@ public class PaymentDetail {
     @Column(name = "payment_source")
     private String paymentSource;
 
+    @Column(name = "dataset_activation_key")
+    private String datasetActivationKey;
+
+    @Column(name = "created_at")
+    private Timestamp createdAt = new Timestamp(System.currentTimeMillis());
+
+    @Column(name = "modified_at")
+    private Timestamp modifiedAt;
+
+    @Column(name = "license_start_date")
+    private Date licenseStartDate;
+
+    @Column(name = "license_end_date")
+    private Date licenseEndDate;
+
     public enum Currency {
         EUR, USD;
     }
+
+    public enum PaymentStatus {
+        CANCELED_REVERSAL,
+        COMPLETED,
+        CREATED,
+        DENIED,
+        EXPIRED,
+        FAILED,
+        PENDING,
+        REFUNDED,
+        REVERSED,
+        PROCESSED,
+        VOIDED;
+    }
+
+    public enum Status {
+        PENDING, ACTIVE, ARCHIVED
+    }
+
     public PaymentDetail() {
     }
 
-    public PaymentDetail(Integer orderId, Double amount, String description, String status,
-                         String paypalOrderId, String payerId, String paymentId, String paymentSource) {
+    public PaymentDetail(Integer orderId, Double amount, String description, String currency, String status,
+                         String licenseKey, String paymentId, String payerId, String paymentSource) {
         this.orderId = orderId;
         this.amount = amount;
         this.description = description;
+        this.currency = currency;
         this.status = status;
-        this.paypalOrderId = paypalOrderId;
-        this.payerId = payerId;
+        this.datasetActivationKey = licenseKey;
         this.paymentId = paymentId;
+        this.payerId = payerId;
         this.paymentSource = paymentSource;
-        this.modifiedAt = new Timestamp(System.currentTimeMillis());
     }
 }

@@ -11,9 +11,6 @@ public class Vendor {
     @Column(name = "id")
     private Integer id;
 
-    @Column(name = "user_id")
-    private Long userId;
-
     @Column(name = "account_no")
     private String accountNo;
 
@@ -51,11 +48,11 @@ public class Vendor {
     }
 
     public void update(Vendor vendor) {
-        if (vendor.getUserId() != null) {
-            this.userId = vendor.getUserId();
-        }
         if (vendor.getAccountNo() != null) {
             this.accountNo = vendor.getAccountNo();
+        }
+        if (vendor.getAccountName() != null) {
+            this.accountName = vendor.getAccountName();
         }
         if (vendor.getBankName() != null) {
             this.bankName = vendor.getBankName();

@@ -18,4 +18,8 @@ public interface UserRepository extends JpaRepository<User, Long> {
     @Modifying
     @Query(nativeQuery = true, value = "UPDATE user u SET u.active = 0, end_date = CURRENT_TIMESTAMP() WHERE u.id = :id")
     void deactivate(@Param("id") Long id);
+
+    @Modifying
+    @Query(nativeQuery = true, value = "UPDATE user SET vendor_id = :vendorId WHERE id = :id")
+    void updateVendor(@Param("id") Long id, @Param("vendorId") Integer vendorId);
 }

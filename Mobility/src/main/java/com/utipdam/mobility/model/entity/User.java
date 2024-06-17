@@ -49,7 +49,9 @@ public class User {
     @Column(name = "end_date")
     private Timestamp endDate;
 
-
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "vendor_id")
+    private Vendor vendor;
 
     public User() {
     }

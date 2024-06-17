@@ -59,7 +59,6 @@ public class OrderItem {
         this.pastDate = pastDate;
         this.futureDate = futureDate;
         this.monthLicense = monthLicense;
-        this.modifiedAt = new Timestamp(System.currentTimeMillis());
     }
 
 }

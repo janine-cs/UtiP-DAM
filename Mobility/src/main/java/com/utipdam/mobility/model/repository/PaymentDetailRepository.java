@@ -12,7 +12,6 @@ public interface PaymentDetailRepository extends JpaRepository<PaymentDetail, In
     List<PaymentDetail> findAll();
     Optional<PaymentDetail> findById(@Param("id") Integer id);
     @Query(nativeQuery = true, value = "SELECT p.* FROM payment_detail p INNER JOIN order_detail o ON p.order_id = o.id WHERE o.user_id = :userId")
-    PaymentDetail findByUserId(@Param("userId") Long userId);
-
+    List<PaymentDetail> findAllByUserId(@Param("userId") Long userId);
     PaymentDetail findByOrderId(@Param("orderId") Integer orderId);
 }

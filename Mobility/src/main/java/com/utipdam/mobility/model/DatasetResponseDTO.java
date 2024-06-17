@@ -1,5 +1,7 @@
 package com.utipdam.mobility.model;
+
 import com.utipdam.mobility.model.entity.Organization;
+import com.utipdam.mobility.model.entity.Vendor;
 import lombok.Data;
 
 import java.util.List;
@@ -28,7 +30,7 @@ public class DatasetResponseDTO {
     private Double fee3mo;
     private Double fee6mo;
     private Double fee12mo;
-
+    private Vendor vendor;
 
     public DatasetResponseDTO() {
     }
@@ -38,7 +40,8 @@ public class DatasetResponseDTO {
                               Organization organization, UUID datasetDefinitionId,
                               String updatedOn, Long dataPoints, List<DatasetListDTO> datasets,
                               Long userId, Boolean internal, Integer downloadCount, Boolean publishMDS,
-                              String publishedOn, Double fee1d, Double fee3mo, Double fee6mo, Double fee12mo) {
+                              String publishedOn, Double fee1d, Double fee3mo, Double fee6mo, Double fee12mo,
+                              Vendor vendor) {
         this.datasetDefinitionId = datasetDefinitionId;
         this.name = name;
         this.description = description;
@@ -59,7 +62,6 @@ public class DatasetResponseDTO {
         this.fee3mo = fee3mo;
         this.fee6mo = fee6mo;
         this.fee12mo = fee12mo;
-
-
+        this.vendor = vendor;
     }
 }

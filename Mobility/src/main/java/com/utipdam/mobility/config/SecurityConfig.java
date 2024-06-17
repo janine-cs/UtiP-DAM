@@ -69,12 +69,13 @@ public class SecurityConfig { // extends WebSecurityConfigurerAdapter {
                                 .requestMatchers(HttpMethod.PATCH, "/account/*").authenticated()
                                 .requestMatchers(HttpMethod.PATCH, "/accountPw/*").authenticated()
                                 .requestMatchers(HttpMethod.PATCH, "/deactivate/*").authenticated()
-                                .requestMatchers(HttpMethod.GET, "/myDatasets/*").authenticated()
+                                .requestMatchers(HttpMethod.GET, "/myDatasets").authenticated()
                                 .requestMatchers(HttpMethod.GET, "/vendor").authenticated()
                                 .requestMatchers(HttpMethod.POST, "/vendor").authenticated()
                                 .requestMatchers(HttpMethod.PUT, "/vendor/*").authenticated()
                                 .requestMatchers(HttpMethod.POST, "/order").authenticated()
                                 .requestMatchers(HttpMethod.POST, "/checkout").authenticated()
+                                .requestMatchers(HttpMethod.GET, "/invoices").authenticated()
                                 .requestMatchers("/**").permitAll().anyRequest().authenticated()
                 );
 

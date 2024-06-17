@@ -47,8 +47,9 @@ public class DatasetDefinition implements Serializable {
     @JoinColumn(name = "server_id")
     private Server server;
 
-    @Column(name = "user_id")
-    private Long userId;
+    @ManyToOne(fetch = FetchType.EAGER)
+    @JoinColumn(name = "user_id")
+    private User user;
 
     @Column(name = "publish_mds")
     private Boolean publishMDS;
@@ -67,7 +68,6 @@ public class DatasetDefinition implements Serializable {
 
     @Column(name = "fee_12mo")
     private Double fee12mo;
-
 
     public DatasetDefinition() {
     }
@@ -100,8 +100,8 @@ public class DatasetDefinition implements Serializable {
         if (datasetDefinition.getServer() != null) {
             this.server = datasetDefinition.getServer();
         }
-        if (datasetDefinition.getUserId() != null) {
-            this.userId = datasetDefinition.getUserId();
+        if (datasetDefinition.getUser() != null) {
+            this.user = datasetDefinition.getUser();
         }
         if (datasetDefinition.getPublishMDS() != null) {
             this.publishMDS = datasetDefinition.getPublishMDS();

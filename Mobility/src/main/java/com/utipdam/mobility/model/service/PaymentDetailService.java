@@ -6,6 +6,7 @@ import com.utipdam.mobility.model.repository.PaymentDetailRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Optional;
 
 
@@ -21,8 +22,8 @@ public class PaymentDetailService {
     public Optional<PaymentDetail> findById(Integer id) {
         return paymentDetailRepository.findById(id);
     }
-    public PaymentDetail findByUserId(Long userId) {
-        return paymentDetailRepository.findByUserId(userId);
+    public List<PaymentDetail> findAllByUserId(Long userId) {
+        return paymentDetailRepository.findAllByUserId(userId);
     }
 
     public PaymentDetail findByOrderId(Integer orderId) {

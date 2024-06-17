@@ -52,8 +52,8 @@ public class OrderBusiness {
     }
 
 
-    public PaymentDetail getPaymentByUserId(Long userId) {
-        return paymentDetailService.findByUserId(userId);
+    public List<PaymentDetail> getAllPurchasesByUserId(Long userId) {
+        return paymentDetailService.findAllByUserId(userId);
     }
 
     public PaymentDetail getPaymentDetailByOrderId(Integer orderId) {
