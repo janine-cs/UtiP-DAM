@@ -114,7 +114,7 @@ public class MobilityController {
         try {
             String pyPath = "/opt/utils/anonymization-v"+ANONYMIZATION_VERSION+".py";
             logger.info("version " + ANONYMIZATION_VERSION);
-            ProcessBuilder processBuilder = new ProcessBuilder("python3", pyPath, "--input", file, "--k", k);
+            ProcessBuilder processBuilder = new ProcessBuilder("/bin/sh", "-c","python3 " + pyPath + " --input " + file + " --k " + k + " | tail -n +2");
             processBuilder.redirectErrorStream(true);
             processBuilder.redirectOutput(ProcessBuilder.Redirect.appendTo(fi));
             Process process = processBuilder.start();
@@ -453,87 +453,6 @@ public class MobilityController {
         } catch (Exception e) {
             logger.error(e.getMessage());
             return null;
-        }
-    }
-
-    @PostMapping("/mobility/output")
-    public ResponseEntity<?> performanceMetrics(@RequestPart String datasetDefinition,
-                                                              @RequestPart String k,
-                                                              @RequestPart String file) {
-
-        Map<String, Object> response = new HashMap<>();
-        String errorMessage;
-        if (!isNumeric(k)) {
-            errorMessage = "k must be a number between 0 - 100. You provided " + k;
-            logger.error(errorMessage);
-            response.put("error", errorMessage);
-            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-        }
-
-        if (!Objects.requireNonNull(file.endsWith(".csv"))) {
-            errorMessage = "Please upload a csv file. You provided " + file;
-            logger.error(errorMessage);
-            response.put("error", errorMessage);
-            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-        }
-
-        File fOrg;
-        String path = "/data/mobility/" + datasetDefinition;
-        try {
-            fOrg = new File(path);
-            fOrg.setReadable(true, false);
-            fOrg.setWritable(true, false);
-            fOrg.mkdirs();
-            Files.setPosixFilePermissions(Path.of("/data/mobility/" + datasetDefinition), PosixFilePermissions.fromString("rwxrwxrwx"));
-        } catch (IOException e) {
-            errorMessage = e.getMessage();
-            logger.error(errorMessage);
-            response.put("error", errorMessage);
-            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
-        }
-
-        //anonymization process
-        String fileName;
-        String csvDate;
-
-        UUID uuid = UUID.randomUUID();
-        fileName = "dataset-" + uuid + "-.csv";
-
-        String strPath = path + "/" + fileName;
-        File fi = new File(strPath);
-        fi.setReadable(true, false);
-        fi.setWritable(true, false);
-
-        try {
-            String pyPath = "/opt/utils/anonymization-v"+ANONYMIZATION_VERSION+".py";
-            logger.info("version " + ANONYMIZATION_VERSION);
-            ProcessBuilder processBuilder = new ProcessBuilder("python3", pyPath, "--input", file, "--k", k);
-            processBuilder.redirectErrorStream(true);
-            processBuilder.redirectOutput(ProcessBuilder.Redirect.appendTo(fi));
-            Process process = processBuilder.start();
-
-            int exitVal = process.waitFor();
-            logger.info("exitVal " + exitVal);
-            if (exitVal == 0) {
-                BufferedReader br = new BufferedReader(new FileReader(strPath));
-                String firstLine = br.readLine();
-                String metrics = firstLine.contains("{'data':") ? firstLine.replaceAll("'", "\"") : null;
-
-                br.close();
-                return new ResponseEntity<>(metrics, HttpStatus.OK);
-
-            } else {
-                errorMessage = "Error in anonymization.py command";
-                logger.error(errorMessage);
-                response.put("error", errorMessage);
-                return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
-            }
-
-        } catch (IOException | InterruptedException e) {
-            errorMessage = e.getMessage();
-            logger.error(errorMessage);
-            response.put("error", errorMessage);
-            return new ResponseEntity<>(response, HttpStatus.INTERNAL_SERVER_ERROR);
         }
     }
 
