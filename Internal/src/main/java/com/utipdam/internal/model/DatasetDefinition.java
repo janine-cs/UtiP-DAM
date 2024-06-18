@@ -17,7 +17,7 @@ public class DatasetDefinition {
     private Boolean internal;
     private Organization organization;
     private Server server;
-    private Long userId;
+    private User user;
     private Boolean publishMDS;
     private String publishedOn;
     private Double fee1d;
