@@ -154,7 +154,15 @@ public class DatasetController {
         Map<String, Object> response = new HashMap<>();
         if (userOpt.isPresent()) {
             User userData = userOpt.get();
-            response.put("data", datasetDefinitionBusiness.getAllByUserId(userData.getId()));
+            Stream<MyDatasetsDTO> data = datasetDefinitionBusiness.getAllByUserId(userData.getId()).stream().
+                    map(d -> new MyDatasetsDTO(d.getName(),
+                                d.getDescription(), d.getCountryCode(), d.getCity(),
+                                d.getFee(), d.getPublish(), d.getId(),
+                                d.getUpdatedOn(), d.getInternal())
+
+                    );
+
+            response.put("data", data.collect(Collectors.toList()));
 
             return new ResponseEntity<>(response, HttpStatus.OK);
         } else {
