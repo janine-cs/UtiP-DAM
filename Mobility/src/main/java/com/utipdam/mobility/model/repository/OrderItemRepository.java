@@ -10,6 +10,5 @@ import java.util.Optional;
 public interface OrderItemRepository extends JpaRepository<OrderItem, Integer> {
     List<OrderItem> findAll();
     Optional<OrderItem> findById(@Param("id") Integer id);
-
-    OrderItem findByOrderId(@Param("orderId") Integer orderId);
+    List<OrderItem> findAllByOrderId(@Param("orderId") Integer orderId);
 }

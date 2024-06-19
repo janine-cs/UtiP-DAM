@@ -32,9 +32,6 @@ public class PaymentDetail {
     @Column(name = "balance_transaction")
     private String balanceTransaction;
 
-    @Column(name = "paypal_order_id")
-    private String paypalOrderId;
-
     @Column(name = "payer_id")
     private String payerId;
 

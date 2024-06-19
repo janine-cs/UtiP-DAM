@@ -16,7 +16,9 @@ public class OrderDTO {
     private boolean pastDate = false;
     private boolean futureDate = false;
     private String currency;
+    private Double totalAmount;
     private Integer monthLicense;
+    private String paymentStatus;
     private String paymentId;
     private String payerId;
     private String paymentSource;

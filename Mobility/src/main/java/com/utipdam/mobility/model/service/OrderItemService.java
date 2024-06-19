@@ -6,6 +6,7 @@ import com.utipdam.mobility.model.repository.OrderItemRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.util.List;
 import java.util.Optional;
 
 
@@ -20,6 +21,10 @@ public class OrderItemService {
 
     public Optional<OrderItem> findById(Integer id) {
         return orderItemRepository.findById(id);
+    }
+
+    public List<OrderItem> findAllByOrderId(Integer orderId) {
+        return orderItemRepository.findAllByOrderId(orderId);
     }
 
 

@@ -54,6 +54,9 @@ public class DatasetDefinitionBusiness {
         return datasetDefinitionService.findById(id);
     }
 
+    public DatasetDefinition save(DatasetDefinition dataset){
+        return datasetDefinitionService.save(dataset);
+    }
     public DatasetDefinition save(DatasetDefinitionDTO dataset){
         UUID uuid = UUID.randomUUID();
         DatasetDefinition ds = new DatasetDefinition();
@@ -93,7 +96,7 @@ public class DatasetDefinitionBusiness {
         ds.setFee3mo(dataset.getFee3mo());
         ds.setFee6mo(dataset.getFee6mo());
         ds.setFee12mo(dataset.getFee12mo());
-
+        ds.setUpdatedOn(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(Calendar.getInstance().getTime()));
         if (dataset.getOrganization() != null){
             Organization response = organizationService.findByNameAndEmail(dataset.getOrganization().getName(), dataset.getOrganization().getEmail());
             if (response == null) {
@@ -162,7 +165,7 @@ public class DatasetDefinitionBusiness {
             data.setFee3mo(dataset.getFee3mo() == null ? ds.get().getFee3mo() : dataset.getFee3mo());
             data.setFee6mo(dataset.getFee6mo() == null ? ds.get().getFee6mo() : dataset.getFee6mo());
             data.setFee12mo(dataset.getFee12mo() == null ? ds.get().getFee12mo() : dataset.getFee12mo());
-
+            data.setUpdatedOn(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(Calendar.getInstance().getTime()));
             ds.get().update(data);
             return datasetDefinitionService.save(ds.get());
         }else{

@@ -47,6 +47,10 @@ public class OrderBusiness {
         return orderDetailService.findById(orderId);
     }
 
+    public List<OrderItem> getOrderItemByOrderId(Integer orderId) {
+        return orderItemService.findAllByOrderId(orderId);
+    }
+
     public Optional<PaymentDetail> getPaymentById(Integer paymentId) {
         return paymentDetailService.findById(paymentId);
     }

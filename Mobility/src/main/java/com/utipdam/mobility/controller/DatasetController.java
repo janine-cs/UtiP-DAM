@@ -26,6 +26,7 @@ import org.springframework.web.multipart.MultipartFile;
 
 import java.io.File;
 import java.io.IOException;
+import java.text.SimpleDateFormat;
 import java.util.*;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -378,15 +379,23 @@ public class DatasetController {
 
                 Optional<DatasetDefinition> datasetDefinition = datasetDefinitionBusiness.getById(datasetDTO.getDatasetDefinitionId());
                 if (datasetDefinition.isPresent()) {
+                    DatasetDefinition dd = datasetDefinition.get();
+
                     Dataset dataset = new Dataset();
                     dataset.setId(datasetDTO.getId());
-                    dataset.setDatasetDefinition(datasetDefinition.get());
+                    dataset.setDatasetDefinition(dd);
                     dataset.setStartDate(datasetDTO.getStartDate());
                     dataset.setEndDate(datasetDTO.getEndDate());
                     dataset.setResolution(datasetDTO.getResolution());
                     dataset.setK(datasetDTO.getK());
                     dataset.setDataPoints(datasetDTO.getDataPoints());
-                    response.put("data", datasetBusiness.save(dataset));
+
+                    Dataset dsSave = datasetBusiness.save(dataset);
+                    dd.setUpdatedOn(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(Calendar.getInstance().getTime()));
+                    dd.update(dd);
+                    datasetDefinitionBusiness.save(dd);
+
+                    response.put("data",dsSave);
                 } else {
                     logger.error("Dataset definition not found");
                     return new ResponseEntity<>(HttpStatus.NOT_FOUND);
