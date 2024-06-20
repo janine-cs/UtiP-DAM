@@ -1,5 +1,6 @@
 package com.utipdam.mobility.business;
 
+import com.utipdam.mobility.KeyUtil;
 import com.utipdam.mobility.config.BusinessService;
 import com.utipdam.mobility.model.entity.*;
 import com.utipdam.mobility.model.service.*;
@@ -7,6 +8,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 
 import java.sql.Date;
+import java.sql.Timestamp;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -27,6 +29,10 @@ public class OrderBusiness {
     @Autowired
     private DownloadsByDayService downloadsByDayService;
 
+    @Autowired
+    private OrderItemDatasetService orderItemDatasetService;
+
+
     public OrderDetail saveOrderDetail(OrderDetail orderDetail){
         return orderDetailService.save(orderDetail);
     }
@@ -37,6 +43,10 @@ public class OrderBusiness {
 
     public OrderItem saveOrderItem(OrderItem orderItem){
         return orderItemService.save(orderItem);
+    }
+
+    public OrderItemDataset saveOrderItemDataset(OrderItemDataset orderItemDataset){
+        return orderItemDatasetService.save(orderItemDataset);
     }
 
     public OrderDetail getOrderDetailByUserId(Long userId) {
@@ -51,14 +61,21 @@ public class OrderBusiness {
         return orderItemService.findAllByOrderId(orderId);
     }
 
+    public List<OrderItem> getOrderItemByUserId(Long userId) {
+        return orderItemService.findAllByUserId(userId);
+    }
+
     public Optional<PaymentDetail> getPaymentById(Integer paymentId) {
         return paymentDetailService.findById(paymentId);
     }
 
-
     public List<PaymentDetail> getAllPurchasesByUserId(Long userId) {
         return paymentDetailService.findAllByUserId(userId);
     }
+    public List<PaymentDetail> getAllPurchasesByUserIdAndPaymentSource(Long userId, String paymentSource) {
+        return paymentDetailService.findAllByUserIdAndPaymentSource(userId, paymentSource);
+    }
+
 
     public PaymentDetail getPaymentDetailByOrderId(Integer orderId) {
         return paymentDetailService.findByOrderId(orderId);
@@ -91,6 +108,31 @@ public class OrderBusiness {
 
     public void saveDownloads(DownloadsByDay downloadsByDay){
         downloadsByDayService.save(downloadsByDay);
+    }
+
+    public PaymentDetail activateLicense(Integer id, String username) {
+        Optional<PaymentDetail> p = paymentDetailService.findById(id);
+        if (p.isPresent()){
+            PaymentDetail pDetail = p.get();
+            pDetail.setDeactivate(false);
+            pDetail.setDatasetActivationKey(KeyUtil.createLicenseKey(username, id.toString()));
+
+            return paymentDetailService.save(pDetail);
+        }else{
+            return null;
+        }
+
+    }
+
+    public void deactivateLicense(Integer id) {
+        Optional<PaymentDetail> p = paymentDetailService.findById(id);
+        if (p.isPresent()){
+            PaymentDetail pDetail = p.get();
+            pDetail.setDeactivate(true);
+            pDetail.setModifiedAt(new Timestamp(System.currentTimeMillis()));
+
+            paymentDetailService.save(pDetail);
+        }
     }
 
     public void delete(Integer id) {

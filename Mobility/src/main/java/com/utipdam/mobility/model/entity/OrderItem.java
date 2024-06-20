@@ -21,14 +21,8 @@ public class OrderItem {
     @Column(name = "order_id")
     private Integer orderId;
 
-    @Column(name = "start_date")
-    private Date startDate;
-
-    @Column(name = "end_date")
-    private Date endDate;
-
-    @Column(name = "one_day")
-    private boolean oneDay;
+    @Column(name = "selected_date")
+    private boolean selectedDate;
 
     @Column(name = "past_date")
     private boolean pastDate;
@@ -45,17 +39,14 @@ public class OrderItem {
     @Column(name = "modified_at")
     private Timestamp modifiedAt;
 
-
     public OrderItem() {
     }
 
-    public OrderItem(UUID datasetDefinitionId, Integer orderId, Date startDate, Date endDate, boolean oneDay,
+    public OrderItem(UUID datasetDefinitionId, Integer orderId, boolean selectedDate,
                      boolean pastDate, boolean futureDate, Integer monthLicense) {
         this.datasetDefinitionId = datasetDefinitionId;
         this.orderId = orderId;
-        this.startDate = startDate;
-        this.endDate = endDate;
-        this.oneDay = oneDay;
+        this.selectedDate = selectedDate;
         this.pastDate = pastDate;
         this.futureDate = futureDate;
         this.monthLicense = monthLicense;

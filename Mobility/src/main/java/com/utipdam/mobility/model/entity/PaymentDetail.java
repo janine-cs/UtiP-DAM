@@ -56,6 +56,9 @@ public class PaymentDetail {
     @Column(name = "license_end_date")
     private Date licenseEndDate;
 
+    private Boolean deactivate = false;
+
+
     public enum Currency {
         EUR, USD;
     }
@@ -71,7 +74,7 @@ public class PaymentDetail {
         REFUNDED,
         REVERSED,
         PROCESSED,
-        VOIDED;
+        VOIDED,
     }
 
     public enum Status {

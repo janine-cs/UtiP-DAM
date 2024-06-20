@@ -26,6 +26,10 @@ public class PaymentDetailService {
         return paymentDetailRepository.findAllByUserId(userId);
     }
 
+    public List<PaymentDetail> findAllByUserIdAndPaymentSource(Long userId, String paymentSource) {
+        return paymentDetailRepository.findAllByUserIdAndPaymentSource(userId, paymentSource);
+    }
+
     public PaymentDetail findByOrderId(Integer orderId) {
         return paymentDetailRepository.findByOrderId(orderId);
     }

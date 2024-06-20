@@ -76,6 +76,7 @@ public class SecurityConfig { // extends WebSecurityConfigurerAdapter {
                                 .requestMatchers(HttpMethod.POST, "/order").authenticated()
                                 .requestMatchers(HttpMethod.POST, "/checkout").authenticated()
                                 .requestMatchers(HttpMethod.GET, "/invoices").authenticated()
+                                .requestMatchers(HttpMethod.POST, "/license").authenticated()
                                 .requestMatchers("/**").permitAll().anyRequest().authenticated()
                 );
 
