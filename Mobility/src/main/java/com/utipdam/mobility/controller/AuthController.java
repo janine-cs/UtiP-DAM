@@ -221,4 +221,23 @@ public class AuthController {
                     .body(new MessageResponse("Error: User not found"));
         }
     }
+
+
+    @DeleteMapping("/deleteAccount")
+    @Transactional
+    public ResponseEntity<?> delete() {
+        Optional<User> userOpt = userRepository.findByUsername(AuthTokenFilter.usernameLoggedIn);
+
+        if (userOpt.isPresent()) {
+            User userData = userOpt.get();
+            int random = new Random().nextInt(900000) + 100000;
+            userRepository.anonymize(userData.getId(), "deletedUser" + random, random + "@anonymous.com");
+            return ResponseEntity.ok(new MessageResponse("User deleted successfully!"));
+        } else {
+            return ResponseEntity
+                    .badRequest()
+                    .body(new MessageResponse("Error: User not found"));
+        }
+    }
+
 }

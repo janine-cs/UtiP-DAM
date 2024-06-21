@@ -6,7 +6,7 @@ Backend services for Mobility
 
 *anonymize*
 
-curl -X POST "https://ngi.cs.co.il/api/mobility/anonymize" --form file=@test.csv --form k=2
+curl -D headers.txt -X POST "https://ngi.cs.co.il/api/mobility/anonymize" --form file=@test.csv --form k=2
 
 *audit*
 

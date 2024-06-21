@@ -135,8 +135,8 @@ public class OrderBusiness {
         }
     }
 
-    public void delete(Integer id) {
-        orderItemService.delete(id);
+    public void deleteInvoice(Integer id) {
+        paymentDetailService.delete(id);
     }
 
 }
