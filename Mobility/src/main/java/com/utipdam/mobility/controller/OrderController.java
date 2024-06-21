@@ -484,6 +484,42 @@ public class OrderController {
         orderBusiness.deactivateLicense(id);
     }
 
+    @PatchMapping("/license/{id}")
+    public ResponseEntity<Map<String, Object>> modifyLicense(@PathVariable Integer id, @RequestBody LicenseDTO license) {
+        Map<String, Object> response = new HashMap<>();
+        Optional<User> userOpt = userRepository.findByUsername(AuthTokenFilter.usernameLoggedIn);
+
+        if (userOpt.isPresent()) {
+            User userData = userOpt.get();
+            Optional<PaymentDetail> paymentOpt = orderBusiness.getPaymentById(id);
+            if (paymentOpt.isPresent()) {
+                PaymentDetail payment = paymentOpt.get();
+
+                List<OrderItem> orderList = orderBusiness.getOrderItemByOrderId(payment.getOrderId());
+                if (orderList != null && !orderList.isEmpty()) {
+
+                    OrderItem orderItem = orderList.get(0);
+                    if (orderItem.isFutureDate()){
+                        Optional<DatasetDefinition> datasetOpt = datasetDefinitionBusiness.getById(orderItem.getDatasetDefinitionId());
+                        if (datasetOpt.isPresent()) {
+                            //if user owns the dataset in the license
+                            if (datasetOpt.get().getUser().getId().equals(userData.getId())) {
+                                orderItem.setMonthLicense(license.getMonthLicense());
+                                orderItem.setModifiedAt(new Timestamp(System.currentTimeMillis()));
+                                response.put("data", orderBusiness.saveOrderItem(orderItem));
+                                return new ResponseEntity<>(response, HttpStatus.OK);
+                            }
+                        }
+                    }
+
+                }
+            }
+        }
+
+        response.put("error", "Unauthorized");
+        return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
+    }
+
     @DeleteMapping("/license/{id}")
     public ResponseEntity<Map<String, Object>> deleteLicense(@PathVariable Integer id) {
         Map<String, Object> response = new HashMap<>();
