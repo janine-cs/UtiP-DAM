@@ -38,12 +38,10 @@ public class PaymentDetailService {
         return paymentDetailRepository.save(paymentDetail);
     }
 
-    public boolean validateApiKey(UUID requestApiKey) {
-        //this is a simplistic implementation. Prod
-        //implementation will check for expired key and other business logic
-        var optionalClientCred = paymentDetailRepository.findByDatasetActivationKey(requestApiKey);
-        return optionalClientCred.isPresent();
+    public Optional<PaymentDetail> validateApiKey(UUID requestApiKey) {
+        return paymentDetailRepository.findByDatasetActivationKey(requestApiKey);
     }
+
     public void delete(Integer id) {
         paymentDetailRepository.deleteById(id);
     }

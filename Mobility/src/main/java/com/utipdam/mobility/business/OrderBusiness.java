@@ -1,7 +1,7 @@
 package com.utipdam.mobility.business;
 
-import com.utipdam.mobility.KeyUtil;
 import com.utipdam.mobility.config.BusinessService;
+import com.utipdam.mobility.model.DownloadDTO;
 import com.utipdam.mobility.model.entity.*;
 import com.utipdam.mobility.model.service.*;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,6 +12,7 @@ import java.sql.Timestamp;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 
 @BusinessService
@@ -32,6 +33,7 @@ public class OrderBusiness {
     @Autowired
     private OrderItemDatasetService orderItemDatasetService;
 
+    public DownloadDTO download;
 
     public OrderDetail saveOrderDetail(OrderDetail orderDetail){
         return orderDetailService.save(orderDetail);
@@ -81,21 +83,31 @@ public class OrderBusiness {
     }
 
     public boolean validateApiKey(UUID apiKey) {
-        return paymentDetailService.validateApiKey(apiKey);
-    }
+        Optional<PaymentDetail> paymentDetailOpt = paymentDetailService.validateApiKey(apiKey);
+        if (paymentDetailOpt.isPresent()){
+            PaymentDetail paymentDetail = paymentDetailOpt.get();
+            List<OrderItem> orderItems = orderItemService.findAllByOrderId(paymentDetail.getOrderId());
+            if (orderItems != null && !orderItems.isEmpty()){
+                OrderItem order = orderItems.get(0);
+                List<UUID> datasets = null;
+                if (order.isFutureDate()){
+                    List<OrderItemDataset> orderItemDatasets = orderItemDatasetService.findAllByOrderItemId(order.getId());
+                    datasets = orderItemDatasets.stream().map(OrderItemDataset::getDatasetId).collect(Collectors.toList());
+                }
 
-//    public CartItem update(Integer id, CartItem cartItem) throws DefaultException {
-//        if (id == null) {
-//            throw new DefaultException("id can not be null");
-//        }
-//        Optional<CartItem> ds = cartItemService.findById(id);
-//        if (ds.isPresent()){
-//            ds.get().update(cartItem);
-//            return cartItemService.save(ds.get());
-//        }else{
-//            return null;
-//        }
-//    }
+                DownloadDTO d = new DownloadDTO();
+                d.setDatasetDefinitionId(order.getDatasetDefinitionId());
+                d.setSelectedDate(order.isSelectedDate());
+                d.setPastDate(order.isPastDate());
+                d.setFutureDate(order.isFutureDate());
+                d.setDatasetIds(datasets);
+                download = d;
+            }
+            return true;
+        }else{
+            return false;
+        }
+    }
 
     public void incrementCount(Integer id){
         downloadsByDayService.incrementCount(id);

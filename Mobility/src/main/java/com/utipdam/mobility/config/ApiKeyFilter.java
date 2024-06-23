@@ -15,8 +15,6 @@ import java.util.Collections;
 import java.util.UUID;
 
 public class ApiKeyFilter extends OncePerRequestFilter {
-
-
     private final OrderBusiness orderBusiness;
 
     public ApiKeyFilter(OrderBusiness orderBusiness) {
@@ -35,6 +33,10 @@ public class ApiKeyFilter extends OncePerRequestFilter {
             ServletException, IOException {
 
         String reqApiKey = request.getHeader("Api-Key");
+        if (reqApiKey == null){
+            response.sendError(HttpStatus.UNAUTHORIZED.value(), "Invalid API Key");
+            return;
+        }
         boolean isApiKeyValid = orderBusiness.validateApiKey(UUID.fromString(reqApiKey));
 
         if(!isApiKeyValid) {

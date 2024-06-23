@@ -355,6 +355,21 @@ public class MobilityController {
     @GetMapping("/premium/download")
     public ResponseEntity<byte[]> downloadPremium(@RequestParam UUID[] datasetIds) {
         String errorMessage;
+        Collection<UUID> paramList;
+        DownloadDTO download = orderBusiness.download;
+        if (!download.isPastDate() && !download.isFutureDate()){
+            Collection<UUID> list = download.getDatasetIds();
+            paramList = new ArrayList<>(List.of(datasetIds));
+            paramList.retainAll( list );
+            if (paramList.isEmpty()){
+                errorMessage = "Invalid dataset id";
+                logger.error(errorMessage);
+                return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
+            }else{
+                datasetIds = paramList.toArray(new UUID[]{});
+            }
+        }
+
 
         if (datasetIds.length < 1) {
             errorMessage = "Please select at least one dataset - datasetIds";
@@ -375,9 +390,10 @@ public class MobilityController {
                     String path = "/data/mobility/" + datasetObj.getDatasetDefinition().getId();
                     File dir = new File(path);
 
+                    UUID[] finalDatasetIds = datasetIds;
                     StreamingResponseBody streamResponse = clientOut -> {
                         try (ZipOutputStream zos = new ZipOutputStream(clientOut)) {
-                            for (UUID datasetId : datasetIds) {
+                            for (UUID datasetId : finalDatasetIds) {
                                 FileFilter fileFilter = new WildcardFileFilter("*dataset-" + datasetId + "-*");
                                 File[] files = dir.listFiles(fileFilter);
 
@@ -446,7 +462,7 @@ public class MobilityController {
             }
         }
 
-        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+        return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
     }
 
     private void incrementDownload(UUID datasetDefinitionId) {
