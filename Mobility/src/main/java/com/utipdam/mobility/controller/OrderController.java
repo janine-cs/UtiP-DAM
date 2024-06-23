@@ -130,7 +130,7 @@ public class OrderController {
             Optional<DatasetDefinition> dtOpt = datasetDefinitionBusiness.getById(order.getDatasetDefinitionId());
             double total = 0D;
             Date licenseStartDate = null, licenseEndDate = null;
-            String licenseKey = null;
+            UUID apiKey = null;
             if (dtOpt.isPresent()) {
                 DatasetDefinition dt = dtOpt.get();
                 if (order.isSelectedDate()) {
@@ -164,7 +164,7 @@ public class OrderController {
                 }
 
                 if (order.getPaymentSource().equalsIgnoreCase("paypal")){
-                    licenseKey = KeyUtil.createLicenseKey(username, order.getPaymentId());
+                    apiKey = UUID.randomUUID();
                 }
             }else{
                 response.put("error", "Dataset not found");
@@ -173,7 +173,7 @@ public class OrderController {
 
             logger.info("Frontend total= " + order.getTotalAmount() + ", backend total = " + total);
             PaymentDetail paymentDetail = new PaymentDetail(orderDetail.getId(), order.getTotalAmount(), order.getDescription(),
-                    currency, order.getPaymentStatus(), licenseKey, order.getPaymentId(),
+                    currency, order.getPaymentStatus(), apiKey, order.getPaymentId(),
                     order.getPayerId(), order.getPaymentSource());
 
             paymentDetail.setLicenseStartDate(licenseStartDate);
@@ -366,9 +366,9 @@ public class OrderController {
                             response.put("error", "Dataset not found");
                             return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
                         }
-                        String licenseKey = KeyUtil.createLicenseKey(license.getRecipientEmail(), String.valueOf(new RandomString()));
+                        UUID apiKey = UUID.randomUUID();
                         PaymentDetail paymentDetail = new PaymentDetail(orderDetail.getId(), 0D, license.getDescription(),
-                                currency, "LICENSE_ONLY", licenseKey, null,
+                                currency, "LICENSE_ONLY", apiKey, null,
                                 null, "provided");
 
                         paymentDetail.setLicenseStartDate(licenseStartDate);
@@ -467,8 +467,7 @@ public class OrderController {
         Optional<User> userOpt = userRepository.findByUsername(AuthTokenFilter.usernameLoggedIn);
 
         if (userOpt.isPresent()) {
-            User userData = userOpt.get();
-            PaymentDetail p = orderBusiness.activateLicense(id, userData.getUsername());
+            PaymentDetail p = orderBusiness.activateLicense(id);
             if (p == null){
                 return ResponseEntity.internalServerError().build();
             }else{

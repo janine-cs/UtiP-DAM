@@ -76,9 +76,12 @@ public class OrderBusiness {
         return paymentDetailService.findAllByUserIdAndPaymentSource(userId, paymentSource);
     }
 
-
     public PaymentDetail getPaymentDetailByOrderId(Integer orderId) {
         return paymentDetailService.findByOrderId(orderId);
+    }
+
+    public boolean validateApiKey(UUID apiKey) {
+        return paymentDetailService.validateApiKey(apiKey);
     }
 
 //    public CartItem update(Integer id, CartItem cartItem) throws DefaultException {
@@ -110,12 +113,12 @@ public class OrderBusiness {
         downloadsByDayService.save(downloadsByDay);
     }
 
-    public PaymentDetail activateLicense(Integer id, String username) {
+    public PaymentDetail activateLicense(Integer id) {
         Optional<PaymentDetail> p = paymentDetailService.findById(id);
         if (p.isPresent()){
             PaymentDetail pDetail = p.get();
             pDetail.setDeactivate(false);
-            pDetail.setDatasetActivationKey(KeyUtil.createLicenseKey(username, id.toString()));
+            pDetail.setDatasetActivationKey(UUID.randomUUID());
 
             return paymentDetailService.save(pDetail);
         }else{

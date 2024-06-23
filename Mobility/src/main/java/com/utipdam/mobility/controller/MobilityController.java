@@ -352,6 +352,103 @@ public class MobilityController {
         return new ResponseEntity<>(HttpStatus.NO_CONTENT);
     }
 
+    @GetMapping("/premium/download")
+    public ResponseEntity<byte[]> downloadPremium(@RequestParam UUID[] datasetIds) {
+        String errorMessage;
+
+        if (datasetIds.length < 1) {
+            errorMessage = "Please select at least one dataset - datasetIds";
+            logger.error(errorMessage);
+            return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
+        }
+
+        Optional<Dataset> dataset = datasetBusiness.getById(datasetIds[0]);
+        if (dataset.isPresent()) {
+            Dataset datasetObj = dataset.get();
+
+            Optional<DatasetDefinition> df = datasetDefinitionBusiness.getById(datasetObj.getDatasetDefinition().getId());
+
+            if (df.isPresent()) {
+                DatasetDefinition definitionObj = df.get();
+                if (definitionObj.getInternal() == null || !definitionObj.getInternal()) {
+                    logger.info(definitionObj.getInternal().toString());
+                    String path = "/data/mobility/" + datasetObj.getDatasetDefinition().getId();
+                    File dir = new File(path);
+
+                    StreamingResponseBody streamResponse = clientOut -> {
+                        try (ZipOutputStream zos = new ZipOutputStream(clientOut)) {
+                            for (UUID datasetId : datasetIds) {
+                                FileFilter fileFilter = new WildcardFileFilter("*dataset-" + datasetId + "-*");
+                                File[] files = dir.listFiles(fileFilter);
+
+                                if (files != null && files.length > 0) {
+                                    File fi = files[0];
+                                    addToZipFile(zos, new FileSystemResource(fi).getInputStream(), fi.getName());
+
+                                }
+                            }
+                        } finally {
+                            clientOut.close();
+                        }
+
+                    };
+                    ByteArrayOutputStream os = new ByteArrayOutputStream(1024);
+                    incrementDownload(definitionObj.getId());
+                    try {
+                        streamResponse.writeTo(os);
+                        return ResponseEntity.ok()
+                                .header(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, HttpHeaders.CONTENT_DISPOSITION)
+                                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment;filename=datasets.zip")
+                                .contentType(MediaType.parseMediaType("application/zip")).body(os.toByteArray());
+
+                    } catch (IOException ex) {
+                        logger.error(ex.getMessage());
+                        return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+                    }
+                } else {
+                    logger.info("downloading from internal server");
+                    //download from internal archive server
+                    RestTemplateClient restTemplate = new RestTemplateClient();
+                    if (df.get().getServer() == null) {
+                        logger.error("No internal server specified");
+                        return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+                    }
+                    String domain = df.get().getServer().getDomain();
+
+                    if (domain != null) {
+                        String uri = domain + "/internal/mobility/download";
+                        logger.info(uri);
+                        String strList = Arrays.toString(datasetIds);
+                        String url = UriComponentsBuilder
+                                .fromUriString(uri)
+                                .queryParam("datasetDefinitionId", definitionObj.getId().toString())
+                                .queryParam("datasetIds", strList.substring(1, strList.length() - 1).replaceAll(" ", "").trim())
+                                .build().toUriString();
+                        try {
+                            ResponseEntity<Resource> exchange = restTemplate.restTemplate()
+                                    .exchange(url, HttpMethod.GET, null, Resource.class);
+                            byte[] inputStream = Objects.requireNonNull(exchange.getBody()).getContentAsByteArray();
+
+                            incrementDownload(definitionObj.getId());
+
+                            return ResponseEntity.ok()
+                                    .header(HttpHeaders.ACCESS_CONTROL_EXPOSE_HEADERS, HttpHeaders.CONTENT_DISPOSITION)
+                                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment;filename=datasets.zip")
+                                    .contentType(MediaType.parseMediaType("application/zip")).body(inputStream);
+                        } catch (KeyStoreException | NoSuchAlgorithmException | KeyManagementException |
+                                 IOException ex) {
+                            logger.error(ex.getMessage());
+                            return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+                        }
+                    }
+
+                }
+            }
+        }
+
+        return new ResponseEntity<>(HttpStatus.NO_CONTENT);
+    }
+
     private void incrementDownload(UUID datasetDefinitionId) {
         DownloadsByDay downloadsByDay = orderBusiness.getByDatasetDefinitionIdAndDate(datasetDefinitionId, Date.valueOf(LocalDate.now()));
         if (downloadsByDay == null) {

@@ -5,6 +5,7 @@ import lombok.Data;
 
 import java.sql.Date;
 import java.sql.Timestamp;
+import java.util.UUID;
 
 @Entity(name = "payment_detail")
 @Data
@@ -42,7 +43,7 @@ public class PaymentDetail {
     private String paymentSource;
 
     @Column(name = "dataset_activation_key")
-    private String datasetActivationKey;
+    private UUID datasetActivationKey;
 
     @Column(name = "created_at")
     private Timestamp createdAt = new Timestamp(System.currentTimeMillis());
@@ -85,13 +86,13 @@ public class PaymentDetail {
     }
 
     public PaymentDetail(Integer orderId, Double amount, String description, String currency, String status,
-                         String licenseKey, String paymentId, String payerId, String paymentSource) {
+                         UUID apiKey, String paymentId, String payerId, String paymentSource) {
         this.orderId = orderId;
         this.amount = amount;
         this.description = description;
         this.currency = currency;
         this.status = status;
-        this.datasetActivationKey = licenseKey;
+        this.datasetActivationKey = apiKey;
         this.paymentId = paymentId;
         this.payerId = payerId;
         this.paymentSource = paymentSource;

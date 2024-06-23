@@ -7,6 +7,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 public interface PaymentDetailRepository extends JpaRepository<PaymentDetail, Integer> {
     List<PaymentDetail> findAll();
@@ -18,4 +19,6 @@ public interface PaymentDetailRepository extends JpaRepository<PaymentDetail, In
             "WHERE o.user_id = :userId AND p.payment_source = :paymentSource order by id DESC")
     List<PaymentDetail> findAllByUserIdAndPaymentSource(@Param("userId") Long userId, @Param("paymentSource") String paymentSource);
     PaymentDetail findByOrderId(@Param("orderId") Integer orderId);
+
+    Optional<PaymentDetail> findByDatasetActivationKey(@Param("apiKey") UUID apiKey);
 }
