@@ -87,6 +87,11 @@ public class OrderController {
                 }
             }
 
+            if (!order.isSelectedDate() && !order.isPastDate() && !order.isFutureDate()){
+                response.put("error", "Invalid selection. Select a date, past or future");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
+
             if (order.isFutureDate()) {
                 if (order.getMonthLicense() == null) {
                     response.put("error", "Please select future date month license");
@@ -132,7 +137,6 @@ public class OrderController {
                     orderBusiness.saveOrderItemDataset(orderItemDataset);
                 }
             }
-
 
             Optional<DatasetDefinition> dtOpt = datasetDefinitionBusiness.getById(order.getDatasetDefinitionId());
             double total = 0D;
