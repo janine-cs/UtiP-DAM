@@ -8,7 +8,6 @@ import org.springframework.stereotype.Service;
 
 import java.util.List;
 import java.util.Optional;
-import java.util.UUID;
 
 
 @Service
@@ -36,10 +35,6 @@ public class PaymentDetailService {
     }
     public PaymentDetail save(PaymentDetail paymentDetail) {
         return paymentDetailRepository.save(paymentDetail);
-    }
-
-    public Optional<PaymentDetail> validateApiKey(UUID requestApiKey) {
-        return paymentDetailRepository.findByDatasetActivationKey(requestApiKey);
     }
 
     public void delete(Integer id) {

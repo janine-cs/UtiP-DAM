@@ -5,7 +5,6 @@ import lombok.Data;
 
 import java.sql.Date;
 import java.sql.Timestamp;
-import java.util.UUID;
 
 @Entity(name = "payment_detail")
 @Data
@@ -42,9 +41,6 @@ public class PaymentDetail {
     @Column(name = "payment_source")
     private String paymentSource;
 
-    @Column(name = "dataset_activation_key")
-    private UUID datasetActivationKey;
-
     @Column(name = "created_at")
     private Timestamp createdAt = new Timestamp(System.currentTimeMillis());
 
@@ -56,8 +52,6 @@ public class PaymentDetail {
 
     @Column(name = "license_end_date")
     private Date licenseEndDate;
-
-    private Boolean deactivate = false;
 
 
     public enum Currency {
@@ -86,13 +80,12 @@ public class PaymentDetail {
     }
 
     public PaymentDetail(Integer orderId, Double amount, String description, String currency, String status,
-                         UUID apiKey, String paymentId, String payerId, String paymentSource) {
+                         String paymentId, String payerId, String paymentSource) {
         this.orderId = orderId;
         this.amount = amount;
         this.description = description;
         this.currency = currency;
         this.status = status;
-        this.datasetActivationKey = apiKey;
         this.paymentId = paymentId;
         this.payerId = payerId;
         this.paymentSource = paymentSource;

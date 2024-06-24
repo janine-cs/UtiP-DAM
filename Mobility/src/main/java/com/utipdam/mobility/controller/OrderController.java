@@ -1,7 +1,6 @@
 package com.utipdam.mobility.controller;
 
 
-import com.utipdam.mobility.KeyUtil;
 import com.utipdam.mobility.business.DatasetDefinitionBusiness;
 import com.utipdam.mobility.business.OrderBusiness;
 import com.utipdam.mobility.config.AuthTokenFilter;
@@ -10,7 +9,6 @@ import com.utipdam.mobility.model.OrderDTO;
 import com.utipdam.mobility.model.PurchaseDTO;
 import com.utipdam.mobility.model.entity.*;
 import com.utipdam.mobility.model.repository.UserRepository;
-import net.bytebuddy.utility.RandomString;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -66,11 +64,9 @@ public class OrderController {
         Map<String, Object> response = new HashMap<>();
 
         Optional<User> userOpt = userRepository.findByUsername(AuthTokenFilter.usernameLoggedIn);
-        String username;
         if (userOpt.isPresent()) {
             User user = userOpt.get();
             order.setUserId(user.getId());
-            username = user.getUsername();
 
             if (order.isSelectedDate()) {
                 if (order.getDatasetIds() == null || order.getDatasetIds().isEmpty()){
@@ -130,7 +126,6 @@ public class OrderController {
             Optional<DatasetDefinition> dtOpt = datasetDefinitionBusiness.getById(order.getDatasetDefinitionId());
             double total = 0D;
             Date licenseStartDate = null, licenseEndDate = null;
-            UUID apiKey = null;
             if (dtOpt.isPresent()) {
                 DatasetDefinition dt = dtOpt.get();
                 if (order.isSelectedDate()) {
@@ -163,9 +158,6 @@ public class OrderController {
                     order.setMonthLicense(null);
                 }
 
-                if (order.getPaymentSource().equalsIgnoreCase("paypal")){
-                    apiKey = UUID.randomUUID();
-                }
             }else{
                 response.put("error", "Dataset not found");
                 return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
@@ -173,13 +165,17 @@ public class OrderController {
 
             logger.info("Frontend total= " + order.getTotalAmount() + ", backend total = " + total);
             PaymentDetail paymentDetail = new PaymentDetail(orderDetail.getId(), order.getTotalAmount(), order.getDescription(),
-                    currency, order.getPaymentStatus(), apiKey, order.getPaymentId(),
+                    currency, order.getPaymentStatus(), order.getPaymentId(),
                     order.getPayerId(), order.getPaymentSource());
 
             paymentDetail.setLicenseStartDate(licenseStartDate);
             paymentDetail.setLicenseEndDate(licenseEndDate);
             PaymentDetail paymentDetailSave = orderBusiness.savePaymentDetail(paymentDetail);
 
+            DatasetActivation datasetActivation = createApiKeyRequest(paymentDetailSave.getId(), orderItemSave.getId(),
+                    orderDetailSave.getUserId(),licenseEndDate,
+                    order.getPaymentSource().equalsIgnoreCase("paypal"));
+            DatasetActivation datasetActivationSave = orderBusiness.saveDatasetActivation(datasetActivation);
 
             //Updating order detail
             Optional<OrderDetail> orderDetailUpdate = orderBusiness.getOrderDetailById(orderDetailSave.getId());
@@ -192,12 +188,25 @@ public class OrderController {
                 orderBusiness.saveOrderDetail(od);
             }
 
-            response.put("data", paymentDetailSave);
+            response.put("data", datasetActivationSave);
 
             return new ResponseEntity<>(response, HttpStatus.OK);
         } else {
             return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
         }
+    }
+
+    private DatasetActivation createApiKeyRequest(Integer paymentId, Integer orderItemId,
+                                                  Long userId, Date expirationDate, Boolean active) {
+        DatasetActivation apiKey = new DatasetActivation();
+        apiKey.setPaymentDetailId(paymentId);
+        apiKey.setOrderItemId(orderItemId);
+        apiKey.setUserId(userId);
+        apiKey.setApiKey(UUID.randomUUID());
+        apiKey.setExpirationDate(expirationDate);
+        apiKey.setActive(active);
+
+        return apiKey;
     }
 
     @GetMapping("/myPurchases")
@@ -229,7 +238,7 @@ public class OrderController {
                                     String status = d.getLicenseEndDate().after(new Date(System.currentTimeMillis())) || d.getLicenseEndDate().toLocalDate().isEqual(new Date(System.currentTimeMillis()).toLocalDate()) ? PaymentDetail.Status.ACTIVE.name() : PaymentDetail.Status.ARCHIVED.name();
 
                                     return new PurchaseDTO(d.getId(), datasetDefinitionId, datasetDefinition.getName(), datasetDefinition.getDescription(),
-                                            status, d.getStatus(), d.getDatasetActivationKey(), d.getLicenseStartDate(), d.getLicenseEndDate(), url,
+                                            status, d.getStatus(), d.getLicenseStartDate(), d.getLicenseEndDate(), url,
                                             d.getLicenseStartDate(), d.getAmount(), d.getCurrency(), datasetDefinition.getOrganization().getName(), d.getCreatedAt(), d.getModifiedAt());
                                 }
                             }
@@ -281,7 +290,7 @@ public class OrderController {
                                 datasetDefinition = dOpt.get();
                                 String status = payment.getLicenseEndDate().after(new Date(System.currentTimeMillis())) || payment.getLicenseEndDate().toLocalDate().isEqual(new Date(System.currentTimeMillis()).toLocalDate()) ? PaymentDetail.Status.ACTIVE.name() : PaymentDetail.Status.ARCHIVED.name();
                                 PurchaseDTO data = new PurchaseDTO(payment.getId(), datasetDefinitionId, datasetDefinition.getName(), datasetDefinition.getDescription(),
-                                        status, payment.getStatus(), payment.getDatasetActivationKey(),
+                                        status, payment.getStatus(),
                                         payment.getLicenseStartDate(), payment.getLicenseEndDate(), url,
                                         payment.getLicenseStartDate(), payment.getAmount(), payment.getCurrency(), datasetDefinition.getOrganization().getName(), payment.getCreatedAt(), payment.getModifiedAt());
                                 response.put("data", data);
@@ -333,7 +342,7 @@ public class OrderController {
 
                         OrderItem orderItem = new OrderItem(license.getDatasetDefinitionId(), orderDetail.getId(),
                                 false, license.isPastDate(), license.isFutureDate(), license.getMonthLicense());
-                        orderBusiness.saveOrderItem(orderItem);
+                        OrderItem orderItemSave = orderBusiness.saveOrderItem(orderItem);
 
 
                         Optional<DatasetDefinition> dtOpt = datasetDefinitionBusiness.getById(license.getDatasetDefinitionId());
@@ -366,15 +375,20 @@ public class OrderController {
                             response.put("error", "Dataset not found");
                             return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
                         }
-                        UUID apiKey = UUID.randomUUID();
+
                         PaymentDetail paymentDetail = new PaymentDetail(orderDetail.getId(), 0D, license.getDescription(),
-                                currency, "LICENSE_ONLY", apiKey, null,
+                                currency, "LICENSE_ONLY", null,
                                 null, "provided");
 
                         paymentDetail.setLicenseStartDate(licenseStartDate);
                         paymentDetail.setLicenseEndDate(licenseEndDate);
                         PaymentDetail paymentDetailSave = orderBusiness.savePaymentDetail(paymentDetail);
 
+
+                        DatasetActivation datasetActivation = createApiKeyRequest(paymentDetailSave.getId(), orderItemSave.getId(),
+                                orderDetailSave.getUserId(),licenseEndDate,
+                                true);
+                        DatasetActivation datasetActivationSave = orderBusiness.saveDatasetActivation(datasetActivation);
 
                         //Updating order detail
                         Optional<OrderDetail> orderDetailUpdate = orderBusiness.getOrderDetailById(orderDetailSave.getId());
@@ -387,7 +401,7 @@ public class OrderController {
                             orderBusiness.saveOrderDetail(od);
                         }
 
-                        response.put("data", paymentDetailSave);
+                        response.put("data", datasetActivationSave);
 
                         return new ResponseEntity<>(response, HttpStatus.OK);
                     }else{
@@ -467,7 +481,7 @@ public class OrderController {
         Optional<User> userOpt = userRepository.findByUsername(AuthTokenFilter.usernameLoggedIn);
 
         if (userOpt.isPresent()) {
-            PaymentDetail p = orderBusiness.activateLicense(id);
+            DatasetActivation p = orderBusiness.activateLicense(id, true);
             if (p == null){
                 return ResponseEntity.internalServerError().build();
             }else{
@@ -479,8 +493,19 @@ public class OrderController {
     }
 
     @PatchMapping("/invoice/licenseDeactivation/{id}")
-    public void deactivateLicense(@PathVariable Integer id) {
-        orderBusiness.deactivateLicense(id);
+    public ResponseEntity<?>  deactivateLicense(@PathVariable Integer id) {
+        Optional<User> userOpt = userRepository.findByUsername(AuthTokenFilter.usernameLoggedIn);
+
+        if (userOpt.isPresent()) {
+            DatasetActivation p = orderBusiness.activateLicense(id, false);
+            if (p == null){
+                return ResponseEntity.internalServerError().build();
+            }else{
+                return ResponseEntity.ok(p);
+            }
+        } else {
+            return ResponseEntity.notFound().build();
+        }
     }
 
     @PatchMapping("/license/{id}")
@@ -538,13 +563,11 @@ public class OrderController {
 
                             if (payment.getStatus().equalsIgnoreCase("LICENSE_ONLY")){
                                 payment.setStatus("LICENSE_REVOKED");
-                                payment.setDeactivate(true);
                                 payment.setModifiedAt(new Timestamp(System.currentTimeMillis()));
                                 orderBusiness.savePaymentDetail(payment);
-
+                                orderBusiness.activateLicense(id, false);
                                 response.put("status", "Deleted");
                                 return new ResponseEntity<>(response, HttpStatus.OK);
-
                             }
                         }
                     }

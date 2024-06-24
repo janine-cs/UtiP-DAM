@@ -33,6 +33,10 @@ public class OrderBusiness {
     @Autowired
     private OrderItemDatasetService orderItemDatasetService;
 
+    @Autowired
+    private DatasetActivationService datasetActivationService;
+
+
     public DownloadDTO download;
 
     public OrderDetail saveOrderDetail(OrderDetail orderDetail){
@@ -42,6 +46,11 @@ public class OrderBusiness {
     public PaymentDetail savePaymentDetail(PaymentDetail paymentDetail){
         return paymentDetailService.save(paymentDetail);
     }
+
+    public DatasetActivation saveDatasetActivation(DatasetActivation datasetActivation){
+        return datasetActivationService.save(datasetActivation);
+    }
+
 
     public OrderItem saveOrderItem(OrderItem orderItem){
         return orderItemService.save(orderItem);
@@ -57,6 +66,10 @@ public class OrderBusiness {
 
     public Optional<OrderDetail> getOrderDetailById(Integer orderId) {
         return orderDetailService.findById(orderId);
+    }
+
+    public Optional<DatasetActivation> findByPaymentDetailId(Integer paymentDetailId) {
+        return datasetActivationService.findByPaymentDetailId(paymentDetailId);
     }
 
     public List<OrderItem> getOrderItemByOrderId(Integer orderId) {
@@ -83,12 +96,12 @@ public class OrderBusiness {
     }
 
     public boolean validateApiKey(UUID apiKey) {
-        Optional<PaymentDetail> paymentDetailOpt = paymentDetailService.validateApiKey(apiKey);
-        if (paymentDetailOpt.isPresent()){
-            PaymentDetail paymentDetail = paymentDetailOpt.get();
-            List<OrderItem> orderItems = orderItemService.findAllByOrderId(paymentDetail.getOrderId());
-            if (orderItems != null && !orderItems.isEmpty()){
-                OrderItem order = orderItems.get(0);
+        Optional<DatasetActivation> datasetActivationOpt = datasetActivationService.validateApiKey(apiKey);
+        if (datasetActivationOpt.isPresent()){
+            DatasetActivation datasetActivation = datasetActivationOpt.get();
+            Optional<OrderItem> orderItemOpt = orderItemService.findById(datasetActivation.getOrderItemId());
+            if (orderItemOpt.isPresent()){
+                OrderItem order = orderItemOpt.get();
                 List<UUID> datasets = null;
                 if (order.isFutureDate()){
                     List<OrderItemDataset> orderItemDatasets = orderItemDatasetService.findAllByOrderItemId(order.getId());
@@ -125,28 +138,16 @@ public class OrderBusiness {
         downloadsByDayService.save(downloadsByDay);
     }
 
-    public PaymentDetail activateLicense(Integer id) {
-        Optional<PaymentDetail> p = paymentDetailService.findById(id);
-        if (p.isPresent()){
-            PaymentDetail pDetail = p.get();
-            pDetail.setDeactivate(false);
-            pDetail.setDatasetActivationKey(UUID.randomUUID());
-
-            return paymentDetailService.save(pDetail);
+    public DatasetActivation activateLicense(Integer id ,boolean active) {
+        //TODO check if dataset owner
+        Optional<DatasetActivation> data = datasetActivationService.findByPaymentDetailId(id);
+        if (data.isPresent()){
+            DatasetActivation datasetActivation = data.get();
+            datasetActivation.setActive(active);
+            datasetActivation.setModifiedAt((new Timestamp(System.currentTimeMillis())));
+            return datasetActivationService.save(datasetActivation);
         }else{
             return null;
-        }
-
-    }
-
-    public void deactivateLicense(Integer id) {
-        Optional<PaymentDetail> p = paymentDetailService.findById(id);
-        if (p.isPresent()){
-            PaymentDetail pDetail = p.get();
-            pDetail.setDeactivate(true);
-            pDetail.setModifiedAt(new Timestamp(System.currentTimeMillis()));
-
-            paymentDetailService.save(pDetail);
         }
     }
 
