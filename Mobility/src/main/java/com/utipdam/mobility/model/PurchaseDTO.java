@@ -14,6 +14,7 @@ public class PurchaseDTO {
     private String datasetDescription;
     private String status;
     private String paymentStatus;
+    private UUID datasetActivationKey;
     private Date licenseStartDate;
     private Date licenseEndDate;
     private String datasetURL;
@@ -28,7 +29,7 @@ public class PurchaseDTO {
     }
 
     public PurchaseDTO(Integer purchaseId, UUID datasetDefinitionId, String datasetName, String datasetDescription,
-                       String status, String paymentStatus,
+                       String status, String paymentStatus, UUID datasetActivationKey,
                        Date licenseStartDate, Date licenseEndDate, String datasetURL, Date purchaseDate,
                        Double purchasePrice, String currency, String datasetPublisher, Timestamp createdAt, Timestamp modifiedOn) {
         this.purchaseId = purchaseId;
@@ -37,6 +38,7 @@ public class PurchaseDTO {
         this.datasetDescription = datasetDescription;
         this.status = status;
         this.paymentStatus = paymentStatus;
+        this.datasetActivationKey = datasetActivationKey;
         this.licenseStartDate = licenseStartDate;
         this.licenseEndDate = licenseEndDate;
         this.datasetURL = datasetURL;

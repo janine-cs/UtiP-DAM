@@ -5,6 +5,7 @@ import com.utipdam.mobility.business.DatasetDefinitionBusiness;
 import com.utipdam.mobility.business.OrderBusiness;
 import com.utipdam.mobility.config.AuthTokenFilter;
 import com.utipdam.mobility.model.LicenseDTO;
+import com.utipdam.mobility.model.MessageResponse;
 import com.utipdam.mobility.model.OrderDTO;
 import com.utipdam.mobility.model.PurchaseDTO;
 import com.utipdam.mobility.model.entity.*;
@@ -39,7 +40,7 @@ public class OrderController {
     @Value("${utipdam.app.domain}")
     private String DOMAIN;
 
-    private final int[] MONTH_LICENSE = {3,6,12};
+    private final int[] MONTH_LICENSE = {3, 6, 12};
 
 
     @GetMapping("/orders")
@@ -59,6 +60,7 @@ public class OrderController {
         return new ResponseEntity<>(response, HttpStatus.OK);
     }
 
+    //paypal, bank transfer transactions
     @PostMapping("/checkout")
     public ResponseEntity<Map<String, Object>> order(@RequestBody OrderDTO order) {
         Map<String, Object> response = new HashMap<>();
@@ -69,7 +71,7 @@ public class OrderController {
             order.setUserId(user.getId());
 
             if (order.isSelectedDate()) {
-                if (order.getDatasetIds() == null || order.getDatasetIds().isEmpty()){
+                if (order.getDatasetIds() == null || order.getDatasetIds().isEmpty()) {
                     response.put("error", "Select at least one date");
                     return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
                 }
@@ -97,6 +99,14 @@ public class OrderController {
                 }
             }
 
+            Optional<DatasetDefinition> datasetDefinitionOpt = datasetDefinitionBusiness.getById(order.getDatasetDefinitionId());
+            DatasetDefinition datasetDefinition;
+            if (datasetDefinitionOpt.isPresent()) {
+                datasetDefinition = datasetDefinitionOpt.get();
+            } else {
+                response.put("error", "Dataset definition not found");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            }
 
 //            List<OrderItem> items = orderBusiness.getOrderItemByUserId(order.getUserId());
 //            long count = items.stream().filter(i -> i.getDatasetDefinitionId().equals(order.getDatasetDefinitionId())
@@ -111,12 +121,13 @@ public class OrderController {
             OrderDetail orderDetail = new OrderDetail(order.getUserId(), null, null);
             OrderDetail orderDetailSave = orderBusiness.saveOrderDetail(orderDetail);
 
+
             OrderItem orderItem = new OrderItem(order.getDatasetDefinitionId(), orderDetail.getId(),
-                   order.isSelectedDate(), order.isPastDate(), order.isFutureDate(), order.getMonthLicense());
+                    order.isSelectedDate(), order.isPastDate(), order.isFutureDate(), order.getMonthLicense());
             OrderItem orderItemSave = orderBusiness.saveOrderItem(orderItem);
 
-            if (order.isSelectedDate()){
-                for (UUID dataset : order.getDatasetIds()){
+            if (order.isSelectedDate()) {
+                for (UUID dataset : order.getDatasetIds()) {
                     OrderItemDataset orderItemDataset = new OrderItemDataset(orderItemSave.getId(), dataset);
                     orderBusiness.saveOrderItemDataset(orderItemDataset);
                 }
@@ -158,7 +169,7 @@ public class OrderController {
                     order.setMonthLicense(null);
                 }
 
-            }else{
+            } else {
                 response.put("error", "Dataset not found");
                 return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
             }
@@ -173,8 +184,8 @@ public class OrderController {
             PaymentDetail paymentDetailSave = orderBusiness.savePaymentDetail(paymentDetail);
 
             DatasetActivation datasetActivation = createApiKeyRequest(paymentDetailSave.getId(), orderItemSave.getId(),
-                    orderDetailSave.getUserId(),licenseEndDate,
-                    order.getPaymentSource().equalsIgnoreCase("paypal"));
+                    orderDetailSave.getUserId(), licenseEndDate,
+                    order.getPaymentSource().equalsIgnoreCase("paypal"), datasetDefinition.getUser().getId());
             DatasetActivation datasetActivationSave = orderBusiness.saveDatasetActivation(datasetActivation);
 
             //Updating order detail
@@ -197,13 +208,15 @@ public class OrderController {
     }
 
     private DatasetActivation createApiKeyRequest(Integer paymentId, Integer orderItemId,
-                                                  Long userId, Date expirationDate, Boolean active) {
+                                                  Long userId, Date expirationDate, Boolean active,
+                                                  Long datasetOwnerId) {
         DatasetActivation apiKey = new DatasetActivation();
         apiKey.setPaymentDetailId(paymentId);
         apiKey.setOrderItemId(orderItemId);
         apiKey.setUserId(userId);
         apiKey.setApiKey(UUID.randomUUID());
         apiKey.setExpirationDate(expirationDate);
+        apiKey.setDatasetOwnerId(datasetOwnerId);
         apiKey.setActive(active);
 
         return apiKey;
@@ -219,27 +232,30 @@ public class OrderController {
             List<PaymentDetail> p = orderBusiness.getAllPurchasesByUserId(userData.getId()).stream().filter(py ->
                     py.getStatus().equalsIgnoreCase("COMPLETED") ||
                             py.getStatus().equalsIgnoreCase("LICENSE_ONLY")).toList();
-            if (p == null) {
-                return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
-            } else {
+            if (!p.isEmpty()) {
                 List<PurchaseDTO> data = p.stream().
                         map(d -> {
-                            List<OrderItem> oiList = orderBusiness.getOrderItemByOrderId(d.getOrderId());
-                            Optional<UUID> datasetDefinitionIdOpt = oiList.stream().map(OrderItem::getDatasetDefinitionId).findFirst();
-                            UUID datasetDefinitionId;
-                            DatasetDefinition datasetDefinition;
+                            Optional<DatasetActivation> datasetActivationOpt = orderBusiness.getByPaymentDetailId(d.getId());
+                            if (datasetActivationOpt.isPresent()) {
 
-                            if (datasetDefinitionIdOpt.isPresent()) {
-                                datasetDefinitionId = datasetDefinitionIdOpt.get();
-                                String url = DOMAIN + "/api/dataset/" + datasetDefinitionId;
-                                Optional<DatasetDefinition> dOpt = datasetDefinitionBusiness.getById(datasetDefinitionId);
-                                if (dOpt.isPresent()) {
-                                    datasetDefinition = dOpt.get();
-                                    String status = d.getLicenseEndDate().after(new Date(System.currentTimeMillis())) || d.getLicenseEndDate().toLocalDate().isEqual(new Date(System.currentTimeMillis()).toLocalDate()) ? PaymentDetail.Status.ACTIVE.name() : PaymentDetail.Status.ARCHIVED.name();
+                                DatasetActivation datasetActivation = datasetActivationOpt.get();
 
-                                    return new PurchaseDTO(d.getId(), datasetDefinitionId, datasetDefinition.getName(), datasetDefinition.getDescription(),
-                                            status, d.getStatus(), d.getLicenseStartDate(), d.getLicenseEndDate(), url,
-                                            d.getLicenseStartDate(), d.getAmount(), d.getCurrency(), datasetDefinition.getOrganization().getName(), d.getCreatedAt(), d.getModifiedAt());
+                                if (datasetActivation.getUserId().equals(userData.getId())) {
+                                    Optional<OrderItem> orderItemOpt = orderBusiness.getOrderItemById(datasetActivation.getOrderItemId());
+                                    if (orderItemOpt.isPresent()) {
+                                        UUID datasetDefinitionId = orderItemOpt.get().getDatasetDefinitionId();
+                                        String url = DOMAIN + "/api/dataset/" + datasetDefinitionId;
+                                        Optional<DatasetDefinition> dOpt = datasetDefinitionBusiness.getById(datasetDefinitionId);
+                                        if (dOpt.isPresent()) {
+                                            DatasetDefinition datasetDefinition = dOpt.get();
+                                            String status = datasetActivation.isActive() && (d.getLicenseEndDate().after(new Date(System.currentTimeMillis())) || d.getLicenseEndDate().toLocalDate().isEqual(new Date(System.currentTimeMillis()).toLocalDate())) ? "ACTIVE" : "INACTIVE";
+
+                                            return new PurchaseDTO(d.getId(), datasetDefinitionId, datasetDefinition.getName(), datasetDefinition.getDescription(),
+                                                    status, d.getStatus(), datasetActivation.getApiKey(), d.getLicenseStartDate(), d.getLicenseEndDate(), url,
+                                                    d.getLicenseStartDate(), d.getAmount(), d.getCurrency(), datasetDefinition.getOrganization().getName(), d.getCreatedAt(), d.getModifiedAt());
+                                        }
+                                    }
+
                                 }
                             }
 
@@ -247,16 +263,13 @@ public class OrderController {
 
                         }).collect(Collectors.toList());
 
-                if (data.isEmpty()) {
-                    return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
-                } else {
+                if (!data.isEmpty()) {
                     response.put("data", data);
                     return new ResponseEntity<>(response, HttpStatus.OK);
                 }
             }
-        } else {
-            return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
         }
+        return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
     }
 
 
@@ -268,33 +281,32 @@ public class OrderController {
         if (userOpt.isPresent()) {
             User userData = userOpt.get();
 
-            Optional<PaymentDetail> p = orderBusiness.getPaymentById(id).filter(py -> py.getStatus().equalsIgnoreCase(PaymentDetail.PaymentStatus.COMPLETED.name()));
+            Optional<PaymentDetail> p = orderBusiness.getPaymentById(id).filter(py ->
+                    py.getStatus().equalsIgnoreCase(PaymentDetail.PaymentStatus.COMPLETED.name()) ||
+                            py.getStatus().equalsIgnoreCase("LICENSE_ONLY"));
+
             if (p.isPresent()) {
                 PaymentDetail payment = p.get();
-
-                Optional<OrderDetail> odOpt = orderBusiness.getOrderDetailById(payment.getOrderId());
-
-                if (odOpt.isPresent()) {
-                    OrderDetail od = odOpt.get();
-                    if (od.getUserId().equals(userData.getId())) {
-                        List<OrderItem> oiList = orderBusiness.getOrderItemByOrderId(payment.getOrderId());
-                        Optional<UUID> datasetDefinitionIdOpt = oiList.stream().map(OrderItem::getDatasetDefinitionId).findFirst();
-                        UUID datasetDefinitionId;
-                        DatasetDefinition datasetDefinition;
-
-                        if (datasetDefinitionIdOpt.isPresent()) {
-                            datasetDefinitionId = datasetDefinitionIdOpt.get();
+                Optional<DatasetActivation> datasetActivationOpt = orderBusiness.getByPaymentDetailId(payment.getId());
+                if (datasetActivationOpt.isPresent()) {
+                    DatasetActivation datasetActivation = datasetActivationOpt.get();
+                    if (datasetActivation.getUserId().equals(userData.getId())) {
+                        Optional<OrderItem> orderItemOpt = orderBusiness.getOrderItemById(datasetActivation.getOrderItemId());
+                        if (orderItemOpt.isPresent()) {
+                            UUID datasetDefinitionId = orderItemOpt.get().getDatasetDefinitionId();
                             String url = DOMAIN + "/api/dataset/" + datasetDefinitionId;
                             Optional<DatasetDefinition> dOpt = datasetDefinitionBusiness.getById(datasetDefinitionId);
                             if (dOpt.isPresent()) {
-                                datasetDefinition = dOpt.get();
-                                String status = payment.getLicenseEndDate().after(new Date(System.currentTimeMillis())) || payment.getLicenseEndDate().toLocalDate().isEqual(new Date(System.currentTimeMillis()).toLocalDate()) ? PaymentDetail.Status.ACTIVE.name() : PaymentDetail.Status.ARCHIVED.name();
+                                DatasetDefinition datasetDefinition = dOpt.get();
+                                String status = datasetActivation.isActive() && (payment.getLicenseEndDate().after(new Date(System.currentTimeMillis())) || payment.getLicenseEndDate().toLocalDate().isEqual(new Date(System.currentTimeMillis()).toLocalDate())) ?  "ACTIVE" : "INACTIVE";
+
                                 PurchaseDTO data = new PurchaseDTO(payment.getId(), datasetDefinitionId, datasetDefinition.getName(), datasetDefinition.getDescription(),
-                                        status, payment.getStatus(),
+                                        status, payment.getStatus(), datasetActivation.getApiKey(),
                                         payment.getLicenseStartDate(), payment.getLicenseEndDate(), url,
                                         payment.getLicenseStartDate(), payment.getAmount(), payment.getCurrency(), datasetDefinition.getOrganization().getName(), payment.getCreatedAt(), payment.getModifiedAt());
                                 response.put("data", data);
                                 return new ResponseEntity<>(response, HttpStatus.OK);
+
 
                             }
                         }
@@ -304,7 +316,8 @@ public class OrderController {
             }
         }
 
-        return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
+        return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+
     }
 
     @PostMapping("/license")
@@ -315,9 +328,9 @@ public class OrderController {
 
         if (userOpt.isPresent()) {
             Optional<DatasetDefinition> datasetOpt = datasetDefinitionBusiness.getById(license.getDatasetDefinitionId());
-            if (datasetOpt.isPresent()){
+            if (datasetOpt.isPresent()) {
                 //if user owns the dataset in the license
-                if (datasetOpt.get().getUser().getId().equals(userOpt.get().getId())){
+                if (datasetOpt.get().getUser().getId().equals(userOpt.get().getId())) {
                     Optional<User> recipientUserOpt = userRepository.findByEmail(license.getRecipientEmail());
                     if (recipientUserOpt.isPresent()) {
                         User recipientUser = recipientUserOpt.get();
@@ -336,6 +349,14 @@ public class OrderController {
                             }
                         }
 
+                        Optional<DatasetDefinition> datasetDefinitionOpt = datasetDefinitionBusiness.getById(license.getDatasetDefinitionId());
+                        DatasetDefinition datasetDefinition;
+                        if (datasetDefinitionOpt.isPresent()) {
+                            datasetDefinition = datasetDefinitionOpt.get();
+                        } else {
+                            response.put("error", "Dataset definition not found");
+                            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+                        }
 
                         OrderDetail orderDetail = new OrderDetail(recipientUser.getId(), null, null);
                         OrderDetail orderDetailSave = orderBusiness.saveOrderDetail(orderDetail);
@@ -371,7 +392,7 @@ public class OrderController {
                             }
 
 
-                        }else{
+                        } else {
                             response.put("error", "Dataset not found");
                             return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
                         }
@@ -386,8 +407,8 @@ public class OrderController {
 
 
                         DatasetActivation datasetActivation = createApiKeyRequest(paymentDetailSave.getId(), orderItemSave.getId(),
-                                orderDetailSave.getUserId(),licenseEndDate,
-                                true);
+                                orderDetailSave.getUserId(), licenseEndDate,
+                                true, datasetDefinition.getUser().getId());
                         DatasetActivation datasetActivationSave = orderBusiness.saveDatasetActivation(datasetActivation);
 
                         //Updating order detail
@@ -404,23 +425,21 @@ public class OrderController {
                         response.put("data", datasetActivationSave);
 
                         return new ResponseEntity<>(response, HttpStatus.OK);
-                    }else{
+                    } else {
                         response.put("error", "Recipient email does not exist. User not found");
                         return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
                     }
 
 
-                }else{
+                } else {
                     response.put("error", "Only dataset owners are allowed to create new license.");
                     return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
                 }
             } else {
-                response.put("error", "Dataset not found.");
                 return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
             }
 
         } else {
-            response.put("error", "User not found.");
             return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
         }
     }
@@ -458,13 +477,15 @@ public class OrderController {
         Map<String, Object> response = new HashMap<>();
         if (userOpt.isPresent()) {
             User userData = userOpt.get();
-            List<PaymentDetail> p = orderBusiness.getAllPurchasesByUserId(userData.getId());
+            List<PaymentDetail> p = orderBusiness.getAllPurchasesByUserIdAndIsActive(userData.getId(), active);
             if (p == null) {
                 return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
             } else {
                 if (active != null) {
                     if (active) {
-                        p = p.stream().filter(item -> item.getStatus().equals(PaymentDetail.PaymentStatus.COMPLETED.name())).collect(Collectors.toList());
+                        p = p.stream().filter(item ->
+                                        item.getStatus().equals(PaymentDetail.PaymentStatus.COMPLETED.name()))
+                                .collect(Collectors.toList());
                     }
                 }
 
@@ -477,107 +498,124 @@ public class OrderController {
     }
 
     @PatchMapping("/invoice/licenseActivation/{id}")
-    public ResponseEntity<?>  activateLicense(@PathVariable Integer id) {
-        Optional<User> userOpt = userRepository.findByUsername(AuthTokenFilter.usernameLoggedIn);
-
-        if (userOpt.isPresent()) {
-            DatasetActivation p = orderBusiness.activateLicense(id, true);
-            if (p == null){
-                return ResponseEntity.internalServerError().build();
-            }else{
-                return ResponseEntity.ok(p);
-            }
-        } else {
-            return ResponseEntity.notFound().build();
-        }
-    }
-
-    @PatchMapping("/invoice/licenseDeactivation/{id}")
-    public ResponseEntity<?>  deactivateLicense(@PathVariable Integer id) {
-        Optional<User> userOpt = userRepository.findByUsername(AuthTokenFilter.usernameLoggedIn);
-
-        if (userOpt.isPresent()) {
-            DatasetActivation p = orderBusiness.activateLicense(id, false);
-            if (p == null){
-                return ResponseEntity.internalServerError().build();
-            }else{
-                return ResponseEntity.ok(p);
-            }
-        } else {
-            return ResponseEntity.notFound().build();
-        }
-    }
-
-    @PatchMapping("/license/{id}")
-    public ResponseEntity<Map<String, Object>> modifyLicense(@PathVariable Integer id, @RequestBody LicenseDTO license) {
-        Map<String, Object> response = new HashMap<>();
-        Optional<User> userOpt = userRepository.findByUsername(AuthTokenFilter.usernameLoggedIn);
-
-        if (userOpt.isPresent()) {
-            User userData = userOpt.get();
-            Optional<PaymentDetail> paymentOpt = orderBusiness.getPaymentById(id);
-            if (paymentOpt.isPresent()) {
-                PaymentDetail payment = paymentOpt.get();
-
-                List<OrderItem> orderList = orderBusiness.getOrderItemByOrderId(payment.getOrderId());
-                if (orderList != null && !orderList.isEmpty()) {
-
-                    OrderItem orderItem = orderList.get(0);
-                    if (orderItem.isFutureDate()){
-                        Optional<DatasetDefinition> datasetOpt = datasetDefinitionBusiness.getById(orderItem.getDatasetDefinitionId());
-                        if (datasetOpt.isPresent()) {
-                            //if user owns the dataset in the license
-                            if (datasetOpt.get().getUser().getId().equals(userData.getId())) {
-                                orderItem.setMonthLicense(license.getMonthLicense());
-                                orderItem.setModifiedAt(new Timestamp(System.currentTimeMillis()));
-                                response.put("data", orderBusiness.saveOrderItem(orderItem));
-                                return new ResponseEntity<>(response, HttpStatus.OK);
-                            }
-                        }
-                    }
-
-                }
-            }
-        }
-
-        response.put("error", "Unauthorized");
-        return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
-    }
-
-    @DeleteMapping("/license/{id}")
-    public ResponseEntity<Map<String, Object>> deleteLicense(@PathVariable Integer id) {
+    public ResponseEntity<?> activateLicense(@PathVariable Integer id) {
         Map<String, Object> response = new HashMap<>();
         Optional<User> userOpt = userRepository.findByUsername(AuthTokenFilter.usernameLoggedIn);
 
         if (userOpt.isPresent()) {
             User user = userOpt.get();
             Optional<PaymentDetail> paymentOpt = orderBusiness.getPaymentById(id);
-            if (paymentOpt.isPresent()){
+            if (paymentOpt.isPresent()) {
                 PaymentDetail payment = paymentOpt.get();
-                List<OrderItem> orderList = orderBusiness.getOrderItemByOrderId(payment.getOrderId());
-                if (orderList != null && !orderList.isEmpty()) {
-                    Optional<DatasetDefinition> datasetOpt = datasetDefinitionBusiness.getById(orderList.get(0).getDatasetDefinitionId());
-                    if (datasetOpt.isPresent()){
-                        //if user owns the dataset in the license
-                        if (datasetOpt.get().getUser().getId().equals(user.getId())){
+                //if user owns the dataset in the license
+                Optional<DatasetActivation> datasetActivationOpt = orderBusiness.getByPaymentDetailId(id);
+                if (datasetActivationOpt.isPresent()) {
+                    DatasetActivation datasetActivation = datasetActivationOpt.get();
 
-                            if (payment.getStatus().equalsIgnoreCase("LICENSE_ONLY")){
-                                payment.setStatus("LICENSE_REVOKED");
-                                payment.setModifiedAt(new Timestamp(System.currentTimeMillis()));
-                                orderBusiness.savePaymentDetail(payment);
-                                orderBusiness.activateLicense(id, false);
-                                response.put("status", "Deleted");
-                                return new ResponseEntity<>(response, HttpStatus.OK);
-                            }
+                    if (datasetActivation.getDatasetOwnerId().equals(user.getId())) {
+
+                        payment.setModifiedAt(new Timestamp(System.currentTimeMillis()));
+                        orderBusiness.savePaymentDetail(payment);
+                        orderBusiness.activateLicense(id, true);
+                        response.put("status", "Deleted");
+                        return new ResponseEntity<>(response, HttpStatus.OK);
+                    } else {
+                        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+                    }
+                }
+            }
+        }
+        return ResponseEntity.notFound().build();
+    }
+
+    @PatchMapping("/invoice/licenseDeactivation/{id}")
+    public ResponseEntity<?> deactivateLicense(@PathVariable Integer id) {
+        Map<String, Object> response = new HashMap<>();
+        Optional<User> userOpt = userRepository.findByUsername(AuthTokenFilter.usernameLoggedIn);
+
+        if (userOpt.isPresent()) {
+            User user = userOpt.get();
+            Optional<PaymentDetail> paymentOpt = orderBusiness.getPaymentById(id);
+            if (paymentOpt.isPresent()) {
+                PaymentDetail payment = paymentOpt.get();
+                //if user owns the dataset in the license
+                Optional<DatasetActivation> datasetActivationOpt = orderBusiness.getByPaymentDetailId(id);
+                if (datasetActivationOpt.isPresent()) {
+                    DatasetActivation datasetActivation = datasetActivationOpt.get();
+
+                    if (datasetActivation.getDatasetOwnerId().equals(user.getId())) {
+
+                        payment.setModifiedAt(new Timestamp(System.currentTimeMillis()));
+                        orderBusiness.savePaymentDetail(payment);
+                        orderBusiness.activateLicense(id, false);
+                        response.put("status", "Deleted");
+                        return new ResponseEntity<>(response, HttpStatus.OK);
+                    } else {
+                        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+                    }
+                }
+            }
+        }
+        return ResponseEntity.notFound().build();
+    }
+
+    @PatchMapping("/license/{id}")
+    public ResponseEntity<Map<String, Object>> modifyLicense(@PathVariable Integer id,
+                                                             @RequestBody LicenseDTO license) {
+        Map<String, Object> response = new HashMap<>();
+        Optional<User> userOpt = userRepository.findByUsername(AuthTokenFilter.usernameLoggedIn);
+
+        if (userOpt.isPresent()) {
+            User user = userOpt.get();
+            //if user owns the dataset in the license
+            Optional<DatasetActivation> datasetActivationOpt = orderBusiness.getByPaymentDetailId(id);
+            if (datasetActivationOpt.isPresent()) {
+                DatasetActivation datasetActivation = datasetActivationOpt.get();
+                Optional<OrderItem> orderItemOpt = orderBusiness.getOrderItemById(datasetActivation.getOrderItemId());
+                if (orderItemOpt.isPresent()) {
+                    OrderItem orderItem = orderItemOpt.get();
+                    if (orderItem.isFutureDate()) {
+                        if (datasetActivation.getDatasetOwnerId().equals(user.getId())) {
+                            orderItem.setMonthLicense(license.getMonthLicense());
+                            orderItem.setModifiedAt(new Timestamp(System.currentTimeMillis()));
+                            response.put("data", orderBusiness.saveOrderItem(orderItem));
+                            return new ResponseEntity<>(response, HttpStatus.OK);
+                        } else {
+                            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
                         }
                     }
                 }
-
             }
-
         }
-        response.put("error", "Unauthorized");
-        return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
+
+        return ResponseEntity.notFound().build();
     }
 
+    @DeleteMapping("/license/{id}")
+    public ResponseEntity<?> deleteLicense(@PathVariable Integer id) {
+        Optional<User> userOpt = userRepository.findByUsername(AuthTokenFilter.usernameLoggedIn);
+
+        if (userOpt.isPresent()) {
+            User user = userOpt.get();
+            Optional<PaymentDetail> paymentOpt = orderBusiness.getPaymentById(id);
+            if (paymentOpt.isPresent()) {
+                PaymentDetail payment = paymentOpt.get();
+                //if user owns the dataset in the license
+                Optional<DatasetActivation> datasetActivationOpt = orderBusiness.getByPaymentDetailId(id);
+                if (datasetActivationOpt.isPresent()) {
+                    DatasetActivation datasetActivation = datasetActivationOpt.get();
+
+                    if (datasetActivation.getDatasetOwnerId().equals(user.getId())) {
+                        if (payment.getStatus().equalsIgnoreCase("LICENSE_ONLY")) {
+                            orderBusiness.deleteActivation(id);
+                            orderBusiness.deleteInvoice(id);
+                        }
+                    } else {
+                        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+                    }
+                }
+            }
+        }
+        return ResponseEntity.notFound().build();
+    }
 }

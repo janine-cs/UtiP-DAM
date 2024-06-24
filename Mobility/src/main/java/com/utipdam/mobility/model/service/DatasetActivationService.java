@@ -6,7 +6,6 @@ import com.utipdam.mobility.model.repository.DatasetActivationRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
-import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -23,13 +22,7 @@ public class DatasetActivationService {
     public Optional<DatasetActivation> findByPaymentDetailId(Integer id) {
         return datasetActivationRepository.findByPaymentDetailId(id);
     }
-    public List<DatasetActivation> findByUserId(Long userId) {
-        return datasetActivationRepository.findByUserId(userId);
-    }
 
-    public DatasetActivation findByOrderItemId(Integer orderId) {
-        return datasetActivationRepository.findByOrderItemId(orderId);
-    }
     public DatasetActivation save(DatasetActivation datasetActivation) {
         return datasetActivationRepository.save(datasetActivation);
     }

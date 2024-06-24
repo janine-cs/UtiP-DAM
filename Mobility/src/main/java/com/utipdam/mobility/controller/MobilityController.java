@@ -273,8 +273,13 @@ public class MobilityController {
 
             if (df.isPresent()) {
                 DatasetDefinition definitionObj = df.get();
+                if (definitionObj.getFee() > 0D){
+                    errorMessage = "An api key is required to access premium datasets.";
+                    logger.error(errorMessage);
+                    return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
+                }
+
                 if (definitionObj.getInternal() == null || !definitionObj.getInternal()) {
-                    logger.info(definitionObj.getInternal().toString());
                     String path = "/data/mobility/" + datasetObj.getDatasetDefinition().getId();
                     File dir = new File(path);
 

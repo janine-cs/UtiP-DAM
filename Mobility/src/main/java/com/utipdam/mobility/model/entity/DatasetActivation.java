@@ -26,7 +26,10 @@ public class DatasetActivation {
     @Column(name = "expiration_date")
     private Date expirationDate;
 
-    private Boolean active = true;
+    @Column(name = "dataset_owner_id")
+    private Long datasetOwnerId;
+
+    private boolean active = true;
 
     @Column(name = "created_at")
     private Timestamp createdAt = new Timestamp(System.currentTimeMillis());

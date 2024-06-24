@@ -389,12 +389,20 @@ public class DatasetController {
                     dataset.setK(datasetDTO.getK());
                     dataset.setDataPoints(datasetDTO.getDataPoints());
 
-                    Dataset dsSave = datasetBusiness.save(dataset);
-                    dd.setUpdatedOn(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(Calendar.getInstance().getTime()));
-                    dd.update(dd);
-                    datasetDefinitionBusiness.save(dd);
+                    try {
+                        Dataset dsSave = datasetBusiness.save(dataset);
+                        if (dsSave != null){
+                            dd.setUpdatedOn(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(Calendar.getInstance().getTime()));
+                            dd.update(dd);
+                            datasetDefinitionBusiness.save(dd);
+                        }
 
-                    response.put("data",dsSave);
+                        response.put("data",dsSave);
+                    }catch(Exception e){
+                        logger.error("Exception occurred " + e.getMessage());
+                        return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
+                    }
+
                 } else {
                     logger.error("Dataset definition not found");
                     return new ResponseEntity<>(HttpStatus.NOT_FOUND);

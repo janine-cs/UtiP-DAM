@@ -27,11 +27,6 @@ public class OrderItemService {
         return orderItemRepository.findAllByOrderId(orderId);
     }
 
-    public List<OrderItem> findAllByUserId(Long userId) {
-        return orderItemRepository.findAllByUserId(userId);
-    }
-
-
     public OrderItem save(OrderItem orderItem) {
         return orderItemRepository.save(orderItem);
     }

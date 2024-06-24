@@ -50,8 +50,6 @@ public class OrderBusiness {
     public DatasetActivation saveDatasetActivation(DatasetActivation datasetActivation){
         return datasetActivationService.save(datasetActivation);
     }
-
-
     public OrderItem saveOrderItem(OrderItem orderItem){
         return orderItemService.save(orderItem);
     }
@@ -68,16 +66,16 @@ public class OrderBusiness {
         return orderDetailService.findById(orderId);
     }
 
-    public Optional<DatasetActivation> findByPaymentDetailId(Integer paymentDetailId) {
+    public Optional<OrderItem> getOrderItemById(Integer id) {
+        return orderItemService.findById(id);
+    }
+
+    public Optional<DatasetActivation> getByPaymentDetailId(Integer paymentDetailId) {
         return datasetActivationService.findByPaymentDetailId(paymentDetailId);
     }
 
     public List<OrderItem> getOrderItemByOrderId(Integer orderId) {
         return orderItemService.findAllByOrderId(orderId);
-    }
-
-    public List<OrderItem> getOrderItemByUserId(Long userId) {
-        return orderItemService.findAllByUserId(userId);
     }
 
     public Optional<PaymentDetail> getPaymentById(Integer paymentId) {
@@ -87,39 +85,41 @@ public class OrderBusiness {
     public List<PaymentDetail> getAllPurchasesByUserId(Long userId) {
         return paymentDetailService.findAllByUserId(userId);
     }
+
+    public List<PaymentDetail> getAllPurchasesByUserIdAndIsActive(Long userId, Boolean active) {
+        return paymentDetailService.findAllByUserIdAndIsActive(userId, active);
+    }
     public List<PaymentDetail> getAllPurchasesByUserIdAndPaymentSource(Long userId, String paymentSource) {
         return paymentDetailService.findAllByUserIdAndPaymentSource(userId, paymentSource);
     }
 
-    public PaymentDetail getPaymentDetailByOrderId(Integer orderId) {
-        return paymentDetailService.findByOrderId(orderId);
-    }
-
     public boolean validateApiKey(UUID apiKey) {
         Optional<DatasetActivation> datasetActivationOpt = datasetActivationService.validateApiKey(apiKey);
-        if (datasetActivationOpt.isPresent()){
+        if (datasetActivationOpt.isPresent()) {
             DatasetActivation datasetActivation = datasetActivationOpt.get();
-            Optional<OrderItem> orderItemOpt = orderItemService.findById(datasetActivation.getOrderItemId());
-            if (orderItemOpt.isPresent()){
-                OrderItem order = orderItemOpt.get();
-                List<UUID> datasets = null;
-                if (order.isFutureDate()){
-                    List<OrderItemDataset> orderItemDatasets = orderItemDatasetService.findAllByOrderItemId(order.getId());
-                    datasets = orderItemDatasets.stream().map(OrderItemDataset::getDatasetId).collect(Collectors.toList());
-                }
+            if (datasetActivation.isActive() && (datasetActivation.getExpirationDate().after(new Date(System.currentTimeMillis())) ||
+                    datasetActivation.getExpirationDate().toLocalDate().isEqual(new Date(System.currentTimeMillis()).toLocalDate()))) {
+                Optional<OrderItem> orderItemOpt = orderItemService.findById(datasetActivation.getOrderItemId());
+                if (orderItemOpt.isPresent()) {
+                    OrderItem order = orderItemOpt.get();
+                    List<UUID> datasets = null;
+                    if (order.isFutureDate()) {
+                        List<OrderItemDataset> orderItemDatasets = orderItemDatasetService.findAllByOrderItemId(order.getId());
+                        datasets = orderItemDatasets.stream().map(OrderItemDataset::getDatasetId).collect(Collectors.toList());
+                    }
 
-                DownloadDTO d = new DownloadDTO();
-                d.setDatasetDefinitionId(order.getDatasetDefinitionId());
-                d.setSelectedDate(order.isSelectedDate());
-                d.setPastDate(order.isPastDate());
-                d.setFutureDate(order.isFutureDate());
-                d.setDatasetIds(datasets);
-                download = d;
+                    DownloadDTO d = new DownloadDTO();
+                    d.setDatasetDefinitionId(order.getDatasetDefinitionId());
+                    d.setSelectedDate(order.isSelectedDate());
+                    d.setPastDate(order.isPastDate());
+                    d.setFutureDate(order.isFutureDate());
+                    d.setDatasetIds(datasets);
+                    download = d;
+                }
+                return true;
             }
-            return true;
-        }else{
-            return false;
         }
+        return false;
     }
 
     public void incrementCount(Integer id){
@@ -138,21 +138,32 @@ public class OrderBusiness {
         downloadsByDayService.save(downloadsByDay);
     }
 
-    public DatasetActivation activateLicense(Integer id ,boolean active) {
-        //TODO check if dataset owner
+    public void activateLicense(Integer id, boolean active) {
+        Optional<PaymentDetail> pData = paymentDetailService.findById(id);
+        if (pData.isPresent()){
+            PaymentDetail paymentDetail = pData.get();
+            if (paymentDetail.getStatus().equalsIgnoreCase(PaymentDetail.PaymentStatus.PENDING.name())){
+                paymentDetail.setStatus(PaymentDetail.PaymentStatus.COMPLETED.name());
+            }
+            paymentDetail.setModifiedAt(new Timestamp(System.currentTimeMillis()));
+        }
+
         Optional<DatasetActivation> data = datasetActivationService.findByPaymentDetailId(id);
         if (data.isPresent()){
             DatasetActivation datasetActivation = data.get();
             datasetActivation.setActive(active);
-            datasetActivation.setModifiedAt((new Timestamp(System.currentTimeMillis())));
-            return datasetActivationService.save(datasetActivation);
-        }else{
-            return null;
+            datasetActivation.setModifiedAt(new Timestamp(System.currentTimeMillis()));
+            datasetActivationService.save(datasetActivation);
         }
     }
 
     public void deleteInvoice(Integer id) {
         paymentDetailService.delete(id);
     }
+
+    public void deleteActivation(Integer id) {
+        datasetActivationService.delete(id);
+    }
+
 
 }

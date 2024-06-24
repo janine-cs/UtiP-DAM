@@ -34,8 +34,8 @@ public class DatasetService {
         return datasetRepository.findAllByDatasetDefinition_Id(datasetDefinitionId);
     }
 
-    public Dataset save(Dataset organization) {
-        return datasetRepository.save(organization);
+    public Dataset save(Dataset dataset) {
+        return datasetRepository.save(dataset);
     }
 
     public void delete(UUID id) {
