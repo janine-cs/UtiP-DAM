@@ -247,7 +247,14 @@ public class OrderController {
                                 if (datasetActivation.getUserId().equals(userData.getId())) {
                                     Optional<OrderItem> orderItemOpt = orderBusiness.getOrderItemById(datasetActivation.getOrderItemId());
                                     if (orderItemOpt.isPresent()) {
-                                        UUID datasetDefinitionId = orderItemOpt.get().getDatasetDefinitionId();
+                                        OrderItem orderItem = orderItemOpt.get();
+                                        List<UUID> datasetIds = null;
+                                        if (orderItem.isSelectedDate()){
+                                            datasetIds = orderBusiness.getAllByOrderItemId(datasetActivation
+                                                    .getOrderItemId()).stream().map(OrderItemDataset::getDatasetId).collect(Collectors.toList());
+                                        }
+
+                                        UUID datasetDefinitionId = orderItem.getDatasetDefinitionId();
                                         String url = DOMAIN + "/api/dataset/" + datasetDefinitionId;
                                         Optional<DatasetDefinition> dOpt = datasetDefinitionBusiness.getById(datasetDefinitionId);
                                         if (dOpt.isPresent()) {
@@ -255,6 +262,7 @@ public class OrderController {
                                             String status = datasetActivation.isActive() && (d.getLicenseEndDate().after(new Date(System.currentTimeMillis())) || d.getLicenseEndDate().toLocalDate().isEqual(new Date(System.currentTimeMillis()).toLocalDate())) ? "ACTIVE" : "INACTIVE";
 
                                             return new PurchaseDTO(d.getId(), datasetDefinitionId, datasetDefinition.getName(), datasetDefinition.getDescription(),
+                                                    orderItem.isSelectedDate(), datasetIds, orderItem.isPastDate(), orderItem.isFutureDate(),
                                                     status, d.getStatus(), datasetActivation.getApiKey(), d.getLicenseStartDate(), d.getLicenseEndDate(), url,
                                                     d.getLicenseStartDate(), d.getAmount(), d.getCurrency(), datasetDefinition.getOrganization().getName(), d.getCreatedAt(), d.getModifiedAt());
                                         }
@@ -297,7 +305,14 @@ public class OrderController {
                     if (datasetActivation.getUserId().equals(userData.getId())) {
                         Optional<OrderItem> orderItemOpt = orderBusiness.getOrderItemById(datasetActivation.getOrderItemId());
                         if (orderItemOpt.isPresent()) {
-                            UUID datasetDefinitionId = orderItemOpt.get().getDatasetDefinitionId();
+                            OrderItem orderItem = orderItemOpt.get();
+                            List<UUID> datasetIds = null;
+                            if (orderItem.isSelectedDate()){
+                                datasetIds = orderBusiness.getAllByOrderItemId(datasetActivation
+                                        .getOrderItemId()).stream().map(OrderItemDataset::getDatasetId).collect(Collectors.toList());
+                            }
+
+                            UUID datasetDefinitionId = orderItem.getDatasetDefinitionId();
                             String url = DOMAIN + "/api/dataset/" + datasetDefinitionId;
                             Optional<DatasetDefinition> dOpt = datasetDefinitionBusiness.getById(datasetDefinitionId);
                             if (dOpt.isPresent()) {
@@ -305,23 +320,20 @@ public class OrderController {
                                 String status = datasetActivation.isActive() && (payment.getLicenseEndDate().after(new Date(System.currentTimeMillis())) || payment.getLicenseEndDate().toLocalDate().isEqual(new Date(System.currentTimeMillis()).toLocalDate())) ?  "ACTIVE" : "INACTIVE";
 
                                 PurchaseDTO data = new PurchaseDTO(payment.getId(), datasetDefinitionId, datasetDefinition.getName(), datasetDefinition.getDescription(),
-                                        status, payment.getStatus(), datasetActivation.getApiKey(),
+                                        orderItem.isSelectedDate(), datasetIds, orderItem.isPastDate(), orderItem.isFutureDate(), status, payment.getStatus(), datasetActivation.getApiKey(),
                                         payment.getLicenseStartDate(), payment.getLicenseEndDate(), url,
                                         payment.getLicenseStartDate(), payment.getAmount(), payment.getCurrency(), datasetDefinition.getOrganization().getName(), payment.getCreatedAt(), payment.getModifiedAt());
                                 response.put("data", data);
                                 return new ResponseEntity<>(response, HttpStatus.OK);
 
-
                             }
                         }
                     }
                 }
-
             }
         }
 
         return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
-
     }
 
     @PostMapping("/license")

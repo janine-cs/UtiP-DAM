@@ -74,6 +74,10 @@ public class OrderBusiness {
         return datasetActivationService.findByPaymentDetailId(paymentDetailId);
     }
 
+    public List<OrderItemDataset> getAllByOrderItemId(Integer orderItemId) {
+        return orderItemDatasetService.findAllByOrderItemId(orderItemId);
+    }
+
     public List<OrderItem> getOrderItemByOrderId(Integer orderId) {
         return orderItemService.findAllByOrderId(orderId);
     }
