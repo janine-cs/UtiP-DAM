@@ -90,7 +90,7 @@ public class OrderController {
                 }
             }
 
-            if (!order.isSelectedDate() && !order.isPastDate() && !order.isFutureDate()){
+            if (!order.isSelectedDate() && !order.isPastDate() && !order.isFutureDate()) {
                 response.put("error", "Invalid selection. Select a date, past or future");
                 return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
             }
@@ -237,7 +237,7 @@ public class OrderController {
         if (userOpt.isPresent()) {
             User userData = userOpt.get();
             List<PaymentDetail> p = orderBusiness.getAllPurchasesByUserId(userData.getId());
-            if (paymentStatus != null){
+            if (paymentStatus != null) {
                 paymentStatus = paymentStatus.stream()
                         .map(String::toLowerCase)
                         .collect(Collectors.toList());
@@ -259,11 +259,11 @@ public class OrderController {
                                         OrderItem orderItem = orderItemOpt.get();
                                         List<UUID> datasetIds = null;
                                         List<String> selectedDates = new ArrayList<>();
-                                        if (orderItem.isSelectedDate()){
+                                        if (orderItem.isSelectedDate()) {
                                             datasetIds = orderBusiness.getAllByOrderItemId(datasetActivation
                                                     .getOrderItemId()).stream().map(OrderItemDataset::getDatasetId).collect(Collectors.toList());
 
-                                            for(UUID id : datasetIds){
+                                            for (UUID id : datasetIds) {
                                                 Optional<Dataset> dataset = datasetBusiness.getById(id);
                                                 dataset.ifPresent(value -> selectedDates.add(String.valueOf(value.getStartDate())));
                                             }
@@ -322,10 +322,10 @@ public class OrderController {
                             OrderItem orderItem = orderItemOpt.get();
                             List<UUID> datasetIds = null;
                             List<String> selectedDates = new ArrayList<>();
-                            if (orderItem.isSelectedDate()){
+                            if (orderItem.isSelectedDate()) {
                                 datasetIds = orderBusiness.getAllByOrderItemId(datasetActivation
                                         .getOrderItemId()).stream().map(OrderItemDataset::getDatasetId).collect(Collectors.toList());
-                                for(UUID dId : datasetIds){
+                                for (UUID dId : datasetIds) {
                                     Optional<Dataset> dataset = datasetBusiness.getById(dId);
                                     dataset.ifPresent(value -> selectedDates.add(String.valueOf(value.getStartDate())));
                                 }
@@ -336,7 +336,7 @@ public class OrderController {
                             Optional<DatasetDefinition> dOpt = datasetDefinitionBusiness.getById(datasetDefinitionId);
                             if (dOpt.isPresent()) {
                                 DatasetDefinition datasetDefinition = dOpt.get();
-                                String status = datasetActivation.isActive() && (payment.getLicenseEndDate().after(new Date(System.currentTimeMillis())) || payment.getLicenseEndDate().toLocalDate().isEqual(new Date(System.currentTimeMillis()).toLocalDate())) ?  "ACTIVE" : "INACTIVE";
+                                String status = datasetActivation.isActive() && (payment.getLicenseEndDate().after(new Date(System.currentTimeMillis())) || payment.getLicenseEndDate().toLocalDate().isEqual(new Date(System.currentTimeMillis()).toLocalDate())) ? "ACTIVE" : "INACTIVE";
 
                                 PurchaseDTO data = new PurchaseDTO(payment.getId(), datasetDefinitionId, datasetDefinition.getName(), datasetDefinition.getDescription(),
                                         datasetDefinition.getOrganization().getName(), datasetDefinition.getOrganization().getEmail(),
@@ -610,31 +610,35 @@ public class OrderController {
                 Optional<OrderItem> orderItemOpt = orderBusiness.getOrderItemById(datasetActivation.getOrderItemId());
                 if (orderItemOpt.isPresent()) {
                     OrderItem orderItem = orderItemOpt.get();
-                    if (orderItem.isFutureDate()) {
+
+                    Optional<PaymentDetail> payOpt = orderBusiness.getPaymentById(id);
+                    if (payOpt.isPresent()) {
+
                         if (datasetActivation.getDatasetOwnerId().equals(user.getId())) {
-                            orderItem.setMonthLicense(license.getMonthLicense());
-                            orderItem.setModifiedAt(new Timestamp(System.currentTimeMillis()));
-                            response.put("data", orderBusiness.saveOrderItem(orderItem));
+                            PaymentDetail pay = payOpt.get();
+                            PaymentDetail paymentSave = null;
+
+                            if (orderItem.isFutureDate()) {
+                                orderItem.setMonthLicense(license.getMonthLicense());
+                                orderItem.setModifiedAt(new Timestamp(System.currentTimeMillis()));
+                                orderBusiness.saveOrderItem(orderItem);
+                            }
+                            if (license.getLicenseStartDate() != null && license.getLicenseEndDate() != null) {
+                                Date start = Date.valueOf(license.getLicenseStartDate());
+                                Date end = Date.valueOf(license.getLicenseEndDate());
+                                if (start.before(end) || start.equals(end)) {
+                                    pay.setLicenseStartDate(start);
+                                    pay.setLicenseEndDate(end);
+                                    paymentSave = orderBusiness.savePaymentDetail(pay);
+                                }
+                            }
+                            response.put("data", paymentSave == null ? pay : paymentSave);
                             return new ResponseEntity<>(response, HttpStatus.OK);
                         } else {
                             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
                         }
                     }
 
-                    Optional<PaymentDetail> payOpt = orderBusiness.getPaymentById(id);
-                    if (payOpt.isPresent()){
-                        PaymentDetail pay = payOpt.get();
-
-                        if (license.getLicenseStartDate() != null && license.getLicenseEndDate() != null){
-                            Date start = Date.valueOf(license.getLicenseStartDate());
-                            Date end = Date.valueOf(license.getLicenseEndDate());
-                            if (start.before(end) || start.equals(end)){
-                                pay.setLicenseStartDate(start);
-                                pay.setLicenseEndDate(end);
-                                orderBusiness.savePaymentDetail(pay);
-                            }
-                        }
-                    }
                 }
             }
         }
