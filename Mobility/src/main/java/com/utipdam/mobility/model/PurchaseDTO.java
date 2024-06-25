@@ -13,20 +13,22 @@ public class PurchaseDTO {
     private UUID datasetDefinitionId;
     private String datasetName;
     private String datasetDescription;
+    private String datasetOwner;
+    private String datasetOwnerEmail;
     private Boolean selectedDate;
     private List<UUID> datasetIds;
+    private List<String> dates;
     private Boolean pastDate;
     private Boolean futureDate;
     private String status;
     private String paymentStatus;
-    private UUID datasetActivationKey;
+    private UUID apiKey;
     private Date licenseStartDate;
     private Date licenseEndDate;
     private String datasetURL;
     private Date purchaseDate;
     private Double purchasePrice;
     private String currency;
-    private String datasetPublisher;
     private Timestamp createdAt;
     private Timestamp modifiedOn;
 
@@ -34,28 +36,31 @@ public class PurchaseDTO {
     }
 
     public PurchaseDTO(Integer purchaseId, UUID datasetDefinitionId, String datasetName, String datasetDescription,
-                       Boolean selectedDate, List<UUID> datasetIds, Boolean pastDate, Boolean futureDate,
-                       String status, String paymentStatus, UUID datasetActivationKey,
+                       String datasetOwner, String datasetOwnerEmail,
+                       Boolean selectedDate, List<UUID> datasetIds, List<String> dates, Boolean pastDate, Boolean futureDate,
+                       String status, String paymentStatus, UUID apiKey,
                        Date licenseStartDate, Date licenseEndDate, String datasetURL, Date purchaseDate,
-                       Double purchasePrice, String currency, String datasetPublisher, Timestamp createdAt, Timestamp modifiedOn) {
+                       Double purchasePrice, String currency, Timestamp createdAt, Timestamp modifiedOn) {
         this.purchaseId = purchaseId;
         this.datasetDefinitionId = datasetDefinitionId;
         this.datasetName = datasetName;
         this.datasetDescription = datasetDescription;
+        this.datasetOwner = datasetOwner;
+        this.datasetOwnerEmail = datasetOwnerEmail;
         this.selectedDate = selectedDate;
+        this.dates = dates;
         this.datasetIds = datasetIds;
         this.pastDate = pastDate;
         this.futureDate = futureDate;
         this.status = status;
         this.paymentStatus = paymentStatus;
-        this.datasetActivationKey = datasetActivationKey;
+        this.apiKey = apiKey;
         this.licenseStartDate = licenseStartDate;
         this.licenseEndDate = licenseEndDate;
         this.datasetURL = datasetURL;
         this.purchaseDate = purchaseDate;
         this.purchasePrice = purchasePrice;
         this.currency = currency;
-        this.datasetPublisher = datasetPublisher;
         this.createdAt = createdAt;
         this.modifiedOn = modifiedOn;
     }

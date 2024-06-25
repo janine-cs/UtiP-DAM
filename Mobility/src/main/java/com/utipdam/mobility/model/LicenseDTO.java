@@ -12,6 +12,9 @@ public class LicenseDTO {
     private boolean futureDate = false;
     private Integer monthLicense;
     private String recipientEmail;
+    private String licenseStartDate;
+    private String licenseEndDate;
+
 
     public LicenseDTO() {
     }

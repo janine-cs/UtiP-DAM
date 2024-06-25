@@ -274,9 +274,25 @@ public class MobilityController {
             if (df.isPresent()) {
                 DatasetDefinition definitionObj = df.get();
                 if (definitionObj.getFee() > 0D){
-                    errorMessage = "An api key is required to access premium datasets.";
-                    logger.error(errorMessage);
-                    return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
+                    if (AuthTokenFilter.usernameLoggedIn == null){
+                        errorMessage = "An api key is required to access premium datasets.";
+                        logger.error(errorMessage);
+                        return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
+                    }else{
+                        Optional<User> userOpt = userRepository.findByUsername(AuthTokenFilter.usernameLoggedIn);
+                        if (userOpt.isPresent()) {
+                            if (!definitionObj.getUser().getId().equals(userOpt.get().getId())){
+                                errorMessage = "An api key is required to access premium datasets.";
+                                logger.error(errorMessage);
+                                return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
+                            }
+                        }else{
+                            errorMessage = "An api key is required to access premium datasets.";
+                            logger.error(errorMessage);
+                            return new ResponseEntity<>(HttpStatus.UNAUTHORIZED);
+                        }
+                    }
+
                 }
 
                 if (definitionObj.getInternal() == null || !definitionObj.getInternal()) {

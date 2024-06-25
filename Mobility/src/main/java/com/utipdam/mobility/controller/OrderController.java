@@ -1,11 +1,11 @@
 package com.utipdam.mobility.controller;
 
 
+import com.utipdam.mobility.business.DatasetBusiness;
 import com.utipdam.mobility.business.DatasetDefinitionBusiness;
 import com.utipdam.mobility.business.OrderBusiness;
 import com.utipdam.mobility.config.AuthTokenFilter;
 import com.utipdam.mobility.model.LicenseDTO;
-import com.utipdam.mobility.model.MessageResponse;
 import com.utipdam.mobility.model.OrderDTO;
 import com.utipdam.mobility.model.PurchaseDTO;
 import com.utipdam.mobility.model.entity.*;
@@ -36,6 +36,9 @@ public class OrderController {
 
     @Autowired
     private DatasetDefinitionBusiness datasetDefinitionBusiness;
+
+    @Autowired
+    private DatasetBusiness datasetBusiness;
 
     @Value("${utipdam.app.domain}")
     private String DOMAIN;
@@ -227,15 +230,21 @@ public class OrderController {
     }
 
     @GetMapping("/myPurchases")
-    public ResponseEntity<Map<String, Object>> myPurchases() {
+    public ResponseEntity<Map<String, Object>> myPurchases(@RequestParam(required = false) List<String> paymentStatus) {
         Optional<User> userOpt = userRepository.findByUsername(AuthTokenFilter.usernameLoggedIn);
 
         Map<String, Object> response = new HashMap<>();
         if (userOpt.isPresent()) {
             User userData = userOpt.get();
-            List<PaymentDetail> p = orderBusiness.getAllPurchasesByUserId(userData.getId()).stream().filter(py ->
-                    py.getStatus().equalsIgnoreCase("COMPLETED") ||
-                            py.getStatus().equalsIgnoreCase("LICENSE_ONLY")).toList();
+            List<PaymentDetail> p = orderBusiness.getAllPurchasesByUserId(userData.getId());
+            if (paymentStatus != null){
+                paymentStatus = paymentStatus.stream()
+                        .map(String::toLowerCase)
+                        .collect(Collectors.toList());
+                List<String> finalPaymentStatus = paymentStatus;
+                p = p.stream().filter(mp -> finalPaymentStatus.contains(mp.getStatus().toLowerCase())).toList();
+            }
+
             if (!p.isEmpty()) {
                 List<PurchaseDTO> data = p.stream().
                         map(d -> {
@@ -249,9 +258,15 @@ public class OrderController {
                                     if (orderItemOpt.isPresent()) {
                                         OrderItem orderItem = orderItemOpt.get();
                                         List<UUID> datasetIds = null;
+                                        List<String> selectedDates = new ArrayList<>();
                                         if (orderItem.isSelectedDate()){
                                             datasetIds = orderBusiness.getAllByOrderItemId(datasetActivation
                                                     .getOrderItemId()).stream().map(OrderItemDataset::getDatasetId).collect(Collectors.toList());
+
+                                            for(UUID id : datasetIds){
+                                                Optional<Dataset> dataset = datasetBusiness.getById(id);
+                                                dataset.ifPresent(value -> selectedDates.add(String.valueOf(value.getStartDate())));
+                                            }
                                         }
 
                                         UUID datasetDefinitionId = orderItem.getDatasetDefinitionId();
@@ -262,9 +277,10 @@ public class OrderController {
                                             String status = datasetActivation.isActive() && (d.getLicenseEndDate().after(new Date(System.currentTimeMillis())) || d.getLicenseEndDate().toLocalDate().isEqual(new Date(System.currentTimeMillis()).toLocalDate())) ? "ACTIVE" : "INACTIVE";
 
                                             return new PurchaseDTO(d.getId(), datasetDefinitionId, datasetDefinition.getName(), datasetDefinition.getDescription(),
-                                                    orderItem.isSelectedDate(), datasetIds, orderItem.isPastDate(), orderItem.isFutureDate(),
+                                                    datasetDefinition.getOrganization().getName(), datasetDefinition.getOrganization().getEmail(),
+                                                    orderItem.isSelectedDate(), datasetIds, selectedDates, orderItem.isPastDate(), orderItem.isFutureDate(),
                                                     status, d.getStatus(), datasetActivation.getApiKey(), d.getLicenseStartDate(), d.getLicenseEndDate(), url,
-                                                    d.getLicenseStartDate(), d.getAmount(), d.getCurrency(), datasetDefinition.getOrganization().getName(), d.getCreatedAt(), d.getModifiedAt());
+                                                    d.getLicenseStartDate(), d.getAmount(), d.getCurrency(), d.getCreatedAt(), d.getModifiedAt());
                                         }
                                     }
 
@@ -293,9 +309,7 @@ public class OrderController {
         if (userOpt.isPresent()) {
             User userData = userOpt.get();
 
-            Optional<PaymentDetail> p = orderBusiness.getPaymentById(id).filter(py ->
-                    py.getStatus().equalsIgnoreCase(PaymentDetail.PaymentStatus.COMPLETED.name()) ||
-                            py.getStatus().equalsIgnoreCase("LICENSE_ONLY"));
+            Optional<PaymentDetail> p = orderBusiness.getPaymentById(id);
 
             if (p.isPresent()) {
                 PaymentDetail payment = p.get();
@@ -307,9 +321,14 @@ public class OrderController {
                         if (orderItemOpt.isPresent()) {
                             OrderItem orderItem = orderItemOpt.get();
                             List<UUID> datasetIds = null;
+                            List<String> selectedDates = new ArrayList<>();
                             if (orderItem.isSelectedDate()){
                                 datasetIds = orderBusiness.getAllByOrderItemId(datasetActivation
                                         .getOrderItemId()).stream().map(OrderItemDataset::getDatasetId).collect(Collectors.toList());
+                                for(UUID dId : datasetIds){
+                                    Optional<Dataset> dataset = datasetBusiness.getById(dId);
+                                    dataset.ifPresent(value -> selectedDates.add(String.valueOf(value.getStartDate())));
+                                }
                             }
 
                             UUID datasetDefinitionId = orderItem.getDatasetDefinitionId();
@@ -320,9 +339,10 @@ public class OrderController {
                                 String status = datasetActivation.isActive() && (payment.getLicenseEndDate().after(new Date(System.currentTimeMillis())) || payment.getLicenseEndDate().toLocalDate().isEqual(new Date(System.currentTimeMillis()).toLocalDate())) ?  "ACTIVE" : "INACTIVE";
 
                                 PurchaseDTO data = new PurchaseDTO(payment.getId(), datasetDefinitionId, datasetDefinition.getName(), datasetDefinition.getDescription(),
-                                        orderItem.isSelectedDate(), datasetIds, orderItem.isPastDate(), orderItem.isFutureDate(), status, payment.getStatus(), datasetActivation.getApiKey(),
+                                        datasetDefinition.getOrganization().getName(), datasetDefinition.getOrganization().getEmail(),
+                                        orderItem.isSelectedDate(), datasetIds, selectedDates, orderItem.isPastDate(), orderItem.isFutureDate(), status, payment.getStatus(), datasetActivation.getApiKey(),
                                         payment.getLicenseStartDate(), payment.getLicenseEndDate(), url,
-                                        payment.getLicenseStartDate(), payment.getAmount(), payment.getCurrency(), datasetDefinition.getOrganization().getName(), payment.getCreatedAt(), payment.getModifiedAt());
+                                        payment.getLicenseStartDate(), payment.getAmount(), payment.getCurrency(), payment.getCreatedAt(), payment.getModifiedAt());
                                 response.put("data", data);
                                 return new ResponseEntity<>(response, HttpStatus.OK);
 
@@ -598,6 +618,21 @@ public class OrderController {
                             return new ResponseEntity<>(response, HttpStatus.OK);
                         } else {
                             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+                        }
+                    }
+
+                    Optional<PaymentDetail> payOpt = orderBusiness.getPaymentById(id);
+                    if (payOpt.isPresent()){
+                        PaymentDetail pay = payOpt.get();
+
+                        if (license.getLicenseStartDate() != null && license.getLicenseEndDate() != null){
+                            Date start = Date.valueOf(license.getLicenseStartDate());
+                            Date end = Date.valueOf(license.getLicenseEndDate());
+                            if (start.before(end) || start.equals(end)){
+                                pay.setLicenseStartDate(start);
+                                pay.setLicenseEndDate(end);
+                                orderBusiness.savePaymentDetail(pay);
+                            }
                         }
                     }
                 }
