@@ -19,7 +19,6 @@ public interface PaymentDetailRepository extends JpaRepository<PaymentDetail, In
             "p.id = d.payment_detail_id WHERE d.dataset_owner_id = :datasetOwnerId and d.active = :active order by id DESC")
     List<PaymentDetail> findAllByDatasetOwnerIdAndIsActive(@Param("datasetOwnerId") Long datasetOwnerId, @Param("active") Boolean active);
 
-
     @Query(nativeQuery = true, value = "SELECT p.* FROM payment_detail p INNER JOIN dataset_activation d ON " +
             "p.id = d.payment_detail_id WHERE d.user_id = :userId order by id DESC")
     List<PaymentDetail> findAllByUserId(@Param("userId") Long userId);
