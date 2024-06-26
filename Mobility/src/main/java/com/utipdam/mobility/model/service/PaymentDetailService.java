@@ -30,8 +30,17 @@ public class PaymentDetailService {
         return paymentDetailRepository.findAllByUserIdAndIsActive(userId, active);
     }
 
+    public List<PaymentDetail> findAllByDatasetOwnerIdAndIsActive(Long datasetOwnerId, Boolean active) {
+        return paymentDetailRepository.findAllByDatasetOwnerIdAndIsActive(datasetOwnerId, active);
+    }
+
+
     public List<PaymentDetail> findAllByUserIdAndPaymentSource(Long userId, String paymentSource) {
         return paymentDetailRepository.findAllByUserIdAndPaymentSource(userId, paymentSource);
+    }
+
+    public List<PaymentDetail> findAllByDatasetOwnerIdAndPaymentSource(Long datasetOwnerId, String paymentSource) {
+        return paymentDetailRepository.findAllByDatasetOwnerIdAndPaymentSource(datasetOwnerId, paymentSource);
     }
 
     public PaymentDetail findByOrderId(Integer orderId) {

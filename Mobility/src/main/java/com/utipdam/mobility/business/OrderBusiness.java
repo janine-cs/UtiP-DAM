@@ -93,9 +93,18 @@ public class OrderBusiness {
     public List<PaymentDetail> getAllPurchasesByUserIdAndIsActive(Long userId, Boolean active) {
         return paymentDetailService.findAllByUserIdAndIsActive(userId, active);
     }
+    public List<PaymentDetail> getAllPurchasesByDatasetOwnerIdAndIsActive(Long datasetOwnerId, Boolean active) {
+        return paymentDetailService.findAllByDatasetOwnerIdAndIsActive(datasetOwnerId, active);
+    }
+
     public List<PaymentDetail> getAllPurchasesByUserIdAndPaymentSource(Long userId, String paymentSource) {
         return paymentDetailService.findAllByUserIdAndPaymentSource(userId, paymentSource);
     }
+
+    public List<PaymentDetail> getAllPurchasesByDatasetOwnerIdAndPaymentSource(Long datasetOwnerId, String paymentSource) {
+        return paymentDetailService.findAllByDatasetOwnerIdAndPaymentSource(datasetOwnerId, paymentSource);
+    }
+
 
     public boolean validateApiKey(UUID apiKey) {
         Optional<DatasetActivation> datasetActivationOpt = datasetActivationService.validateApiKey(apiKey);
