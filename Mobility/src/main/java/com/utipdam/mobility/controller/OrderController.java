@@ -212,6 +212,7 @@ public class OrderController {
 
             return new ResponseEntity<>(response, HttpStatus.OK);
         } else {
+            response.put("error", "User not found.");
             return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
         }
     }
@@ -308,7 +309,7 @@ public class OrderController {
                 }
             }
         }
-        return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+        return new ResponseEntity<>(response, HttpStatus.NO_CONTENT);
     }
 
 
@@ -374,12 +375,29 @@ public class OrderController {
             }
         }
 
-        return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+        return new ResponseEntity<>(response, HttpStatus.NO_CONTENT);
     }
 
     @PostMapping("/license")
     public ResponseEntity<Map<String, Object>> createLicense(@RequestBody LicenseDTO license) {
         Map<String, Object> response = new HashMap<>();
+
+        if (!license.isPastDate() && !license.isFutureDate()) {
+            response.put("error", "Select at least one: pastDate, futureDate");
+            return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+        }
+
+        if (license.isFutureDate()) {
+            if (license.getMonthLicense() == null) {
+                response.put("error", "Please select future date month license");
+                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+            } else {
+                if (Arrays.stream(MONTH_LICENSE).noneMatch(i -> i == license.getMonthLicense())) {
+                    response.put("error", "Invalid license month value. " + Arrays.toString(MONTH_LICENSE));
+                    return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
+                }
+            }
+        }
         //owner
         Optional<User> userOpt = userRepository.findByUsername(AuthTokenFilter.usernameLoggedIn);
 
@@ -393,18 +411,6 @@ public class OrderController {
                         User recipientUser = recipientUserOpt.get();
 
                         String currency = PaymentDetail.Currency.EUR.name();
-
-                        if (license.isFutureDate()) {
-                            if (license.getMonthLicense() == null) {
-                                response.put("error", "Please select future date month license");
-                                return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-                            } else {
-                                if (Arrays.stream(MONTH_LICENSE).noneMatch(i -> i == license.getMonthLicense())) {
-                                    response.put("error", "Invalid license month value. " + Arrays.toString(MONTH_LICENSE));
-                                    return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
-                                }
-                            }
-                        }
 
                         Optional<DatasetDefinition> datasetDefinitionOpt = datasetDefinitionBusiness.getById(license.getDatasetDefinitionId());
                         DatasetDefinition datasetDefinition;
@@ -493,10 +499,12 @@ public class OrderController {
                     return new ResponseEntity<>(response, HttpStatus.UNAUTHORIZED);
                 }
             } else {
+                response.put("error", "Dataset not found.");
                 return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
             }
 
         } else {
+            response.put("error", "User not found.");
             return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
         }
     }
@@ -523,6 +531,7 @@ public class OrderController {
                 return new ResponseEntity<>(response, HttpStatus.OK);
             }
         } else {
+            response.put("error", "User not found.");
             return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
         }
     }
@@ -550,6 +559,7 @@ public class OrderController {
                 return new ResponseEntity<>(response, HttpStatus.OK);
             }
         } else {
+            response.put("error", "User not found.");
             return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
         }
     }
@@ -576,13 +586,11 @@ public class OrderController {
                         orderBusiness.activateLicense(id, true);
                         response.put("status", "Activated");
                         return new ResponseEntity<>(response, HttpStatus.OK);
-                    } else {
-                        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
                     }
                 }
             }
         }
-        return ResponseEntity.notFound().build();
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
 
     @PatchMapping("/invoice/licenseDeactivation/{id}")
@@ -607,13 +615,11 @@ public class OrderController {
                         orderBusiness.activateLicense(id, false);
                         response.put("status", "Deactivated");
                         return new ResponseEntity<>(response, HttpStatus.OK);
-                    } else {
-                        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
                     }
                 }
             }
         }
-        return ResponseEntity.notFound().build();
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
 
     @PatchMapping("/license/{id}")
@@ -673,8 +679,6 @@ public class OrderController {
 
                             response.put("data", paymentSave == null ? pay : paymentSave);
                             return new ResponseEntity<>(response, HttpStatus.OK);
-                        } else {
-                            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
                         }
                     }
 
@@ -682,7 +686,7 @@ public class OrderController {
             }
         }
 
-        return ResponseEntity.notFound().build();
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
 
     @DeleteMapping("/license/{id}")
@@ -704,12 +708,10 @@ public class OrderController {
                             orderBusiness.deleteActivation(id);
                             orderBusiness.deleteInvoice(id);
                         }
-                    } else {
-                        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
                     }
                 }
             }
         }
-        return ResponseEntity.notFound().build();
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
     }
 }
