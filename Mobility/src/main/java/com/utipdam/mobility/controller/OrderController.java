@@ -18,6 +18,8 @@ import org.springframework.web.bind.annotation.*;
 
 import java.sql.Date;
 import java.sql.Timestamp;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -192,7 +194,7 @@ public class OrderController {
             DatasetActivation datasetActivation = createApiKeyRequest(paymentDetailSave.getId(), orderItemSave.getId(),
                     orderDetailSave.getUserId(), licenseEndDate,
                     order.getPaymentSource().equalsIgnoreCase("paypal"), datasetDefinition.getUser().getId());
-            if (order.getPaymentStatus().equalsIgnoreCase(PaymentDetail.PaymentStatus.FAILED.name())){
+            if (order.getPaymentStatus().equalsIgnoreCase(PaymentDetail.PaymentStatus.FAILED.name())) {
                 datasetActivation.setActive(false);
             }
             DatasetActivation datasetActivationSave = orderBusiness.saveDatasetActivation(datasetActivation);
@@ -272,7 +274,7 @@ public class OrderController {
                                                 dataset.ifPresent(value -> selectedDates.add(String.valueOf(value.getStartDate())));
                                             }
 
-                                        }else if (orderItem.isPastDate()){
+                                        } else if (orderItem.isPastDate()) {
                                             List<DatasetListDTO> list = datasetBusiness.getAllByDatasetDefinitionId(orderItem.getDatasetDefinitionId());
                                             datasetIds = list.stream().map(DatasetListDTO::getId).collect(Collectors.toList());
 
@@ -344,7 +346,7 @@ public class OrderController {
                                     dataset.ifPresent(value -> selectedDates.add(String.valueOf(value.getStartDate())));
                                 }
 
-                            }else if (orderItem.isPastDate()){
+                            } else if (orderItem.isPastDate()) {
                                 List<DatasetListDTO> list = datasetBusiness.getAllByDatasetDefinitionId(orderItem.getDatasetDefinitionId());
                                 datasetIds = list.stream().map(DatasetListDTO::getId).collect(Collectors.toList());
 
@@ -519,16 +521,42 @@ public class OrderController {
             User userData = userOpt.get();
             List<PaymentDetail> p = orderBusiness.getAllPurchasesByDatasetOwnerIdAndPaymentSource(userData.getId(), "bank transfer");
             if (p == null) {
-                return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+                return new ResponseEntity<>(response, HttpStatus.NO_CONTENT);
             } else {
                 if (pending != null) {
                     if (pending) {
-                        p = p.stream().filter(item -> !item.getStatus().equals(PaymentDetail.PaymentStatus.COMPLETED.name())).collect(Collectors.toList());
+                        p = p.stream().filter(item -> !item.getStatus().equals(PaymentDetail.PaymentStatus.COMPLETED.name())).toList();
+                    }else{
+                        p = p.stream().filter(item -> item.getStatus().equals(PaymentDetail.PaymentStatus.COMPLETED.name())).toList();
                     }
                 }
 
-                response.put("data", p);
-                return new ResponseEntity<>(response, HttpStatus.OK);
+                DateFormat f = new SimpleDateFormat("yyyy-MM-dd");
+                List<LicenseResponseDTO> licenseList = p.stream().map(d -> {
+                    Optional<DatasetActivation> datasetActivationOpt = orderBusiness.getByPaymentDetailId(d.getId());
+                    DatasetActivation datasetActivation = datasetActivationOpt.get();
+                    User user = userRepository.getReferenceById(datasetActivation.getUserId());
+
+                    OrderItem orderItem = orderBusiness.getOrderItemByOrderId(d.getOrderId()).get(0);
+                    Optional<DatasetDefinition> datasetDefinitionOpt = datasetDefinitionBusiness.getById(orderItem.getDatasetDefinitionId());
+
+                    DatasetDefinition datasetDefinition = datasetDefinitionOpt.get();
+                    return new LicenseResponseDTO(d.getId(), datasetDefinition.getId(), datasetDefinition.getName(),
+                            datasetDefinition.getDescription(), datasetDefinition.getUser().getId(),
+                            orderItem.isSelectedDate(), orderItem.isPastDate(), orderItem.isFutureDate(), orderItem.getMonthLicense(),
+                            datasetActivation.getUserId(), user.getUsername(), f.format(d.getCreatedAt()),
+                            datasetActivation.isActive(), d.getLicenseStartDate().toString(), d.getLicenseEndDate().toString(),
+                            d.getStatus(), d.getPaymentSource(), d.getAmount());
+
+                }).collect(Collectors.toList());
+
+                if (licenseList != null && licenseList.size() > 0){
+                    response.put("data", licenseList);
+                    return new ResponseEntity<>(response, HttpStatus.OK);
+                }else{
+                    return new ResponseEntity<>(response, HttpStatus.NO_CONTENT);
+                }
+
             }
         } else {
             response.put("error", "User not found.");
@@ -547,17 +575,45 @@ public class OrderController {
             List<PaymentDetail> pActive = orderBusiness.getAllPurchasesByDatasetOwnerIdAndIsActive(userData.getId(), true);
             List<PaymentDetail> p = orderBusiness.getAllPurchasesByDatasetOwnerIdAndIsActive(userData.getId(), active);
             if (p == null) {
-                return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
+                return new ResponseEntity<>(response, HttpStatus.NO_CONTENT);
             } else {
-                if (active){
+                if (active) {
                     p = p.stream().filter(payment -> payment.getLicenseEndDate().after(new Date(System.currentTimeMillis())) || payment.getLicenseEndDate().toLocalDate().isEqual(new Date(System.currentTimeMillis()).toLocalDate())).collect(Collectors.toList());
-                }else{
+                } else {
                     pActive = pActive.stream().filter(payment -> payment.getLicenseEndDate().before(new Date(System.currentTimeMillis()))).toList();
                     p.addAll(pActive);
                 }
-                response.put("data", p);
-                return new ResponseEntity<>(response, HttpStatus.OK);
+
             }
+            DateFormat f = new SimpleDateFormat("yyyy-MM-dd");
+            List<LicenseResponseDTO> licenseList = p.stream().map(d -> {
+                Optional<DatasetActivation> datasetActivationOpt = orderBusiness.getByPaymentDetailId(d.getId());
+                DatasetActivation datasetActivation = datasetActivationOpt.get();
+                User user = userRepository.getReferenceById(datasetActivation.getUserId());
+
+                OrderItem orderItem = orderBusiness.getOrderItemByOrderId(d.getOrderId()).get(0);
+                Optional<DatasetDefinition> datasetDefinitionOpt = datasetDefinitionBusiness.getById(orderItem.getDatasetDefinitionId());
+
+                DatasetDefinition datasetDefinition = datasetDefinitionOpt.get();
+                return new LicenseResponseDTO(d.getId(), datasetDefinition.getId(), datasetDefinition.getName(),
+                        datasetDefinition.getDescription(), datasetDefinition.getUser().getId(),
+                        orderItem.isSelectedDate(), orderItem.isPastDate(), orderItem.isFutureDate(), orderItem.getMonthLicense(),
+                        datasetActivation.getUserId(), user.getUsername(), f.format(d.getCreatedAt()),
+                        datasetActivation.isActive(), d.getLicenseStartDate().toString(), d.getLicenseEndDate().toString(),
+                        d.getStatus(), d.getPaymentSource(), d.getAmount());
+
+            }).collect(Collectors.toList());
+
+
+
+            if (licenseList != null && licenseList.size() > 0){
+                response.put("data", licenseList);
+                return new ResponseEntity<>(response, HttpStatus.OK);
+            }else{
+                return new ResponseEntity<>(response, HttpStatus.NO_CONTENT);
+            }
+
+
         } else {
             response.put("error", "User not found.");
             return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
@@ -628,10 +684,10 @@ public class OrderController {
         Map<String, Object> response = new HashMap<>();
         Optional<User> userOpt = userRepository.findByUsername(AuthTokenFilter.usernameLoggedIn);
 
-        if (license.getMonthLicense() == null && license.getLicenseStartDate() == null && license.getLicenseEndDate() == null){
+        if (license.getMonthLicense() == null && license.getLicenseStartDate() == null && license.getLicenseEndDate() == null) {
             response.put("error", "Modify at least one of the following: monthLicense, licenseStartDate, licenseEndDate");
             return new ResponseEntity<>(HttpStatus.BAD_REQUEST);
-        }else{
+        } else {
             if ((license.getLicenseStartDate() != null && license.getLicenseEndDate() == null) ||
                     (license.getLicenseStartDate() == null && license.getLicenseEndDate() != null)) {
                 response.put("error", "licenseStartDate, licenseEndDate must not be null");
