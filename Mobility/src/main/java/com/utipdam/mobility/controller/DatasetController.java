@@ -148,7 +148,7 @@ public class DatasetController {
     }
 
     @GetMapping("/myDatasets")
-    public ResponseEntity<Map<String, Object>> getAllDatasetsByUserId() {
+    public ResponseEntity<Map<String, Object>> getAllDatasetsByUserId(@RequestParam(required = false) Boolean publish) {
         Optional<User> userOpt = userRepository.findByUsername(AuthTokenFilter.usernameLoggedIn);
 
         Map<String, Object> response = new HashMap<>();
@@ -156,15 +156,27 @@ public class DatasetController {
             User userData = userOpt.get();
             Stream<MyDatasetsDTO> data = datasetDefinitionBusiness.getAllByUserId(userData.getId()).stream().
                     map(d -> new MyDatasetsDTO(d.getName(),
-                                d.getDescription(), d.getCountryCode(), d.getCity(),
-                                d.getFee(), d.getPublish(), d.getId(),
-                                d.getUpdatedOn(), d.getInternal())
+                            d.getDescription(), d.getCountryCode(), d.getCity(),
+                            d.getFee(), d.getPublish(), d.getId(),
+                            d.getUpdatedOn(), d.getInternal())
 
                     );
+            if (publish != null) {
+                if (publish) {
+                    data = data.filter(dt -> dt.getPublish() != null && dt.getPublish());
+                } else {
+                    data = data  .filter(dt -> dt.getPublish() != null && !dt.getPublish());
+                }
+            }
 
-            response.put("data", data.collect(Collectors.toList()));
+            List<MyDatasetsDTO> dto = data.collect(Collectors.toList());
+            if (dto.isEmpty()){
+                return new ResponseEntity<>(response, HttpStatus.NO_CONTENT);
+            }else{
+                response.put("data", dto);
+                return new ResponseEntity<>(response, HttpStatus.OK);
+            }
 
-            return new ResponseEntity<>(response, HttpStatus.OK);
         } else {
             return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
         }
@@ -234,7 +246,7 @@ public class DatasetController {
             Optional<DatasetDefinition> dd = datasetDefinitionBusiness.getById(id);
             if (dd.isPresent()) {
                 DatasetDefinition datasetDef = dd.get();
-                if (userData.getId().equals(datasetDef.getUser().getId())){
+                if (userData.getId().equals(datasetDef.getUser().getId())) {
                     if (datasetDef.getInternal() != null && !datasetDef.getInternal()) {
                         try {
                             FileUtils.deleteDirectory(new File(PATH + "/" + datasetDef.getId()));
@@ -251,7 +263,7 @@ public class DatasetController {
                             .body(new MessageResponse("Not authorized"));
                 }
 
-            }else {
+            } else {
                 return ResponseEntity
                         .badRequest()
                         .body(new MessageResponse("Error: Dataset definition not found"));
@@ -275,7 +287,7 @@ public class DatasetController {
                 Optional<DatasetDefinition> dd = datasetDefinitionBusiness.getById(dataset.getDatasetDefinition().getId());
                 if (dd.isPresent()) {
                     DatasetDefinition datasetDef = dd.get();
-                    if (userData.getId().equals(datasetDef.getUser().getId())){
+                    if (userData.getId().equals(datasetDef.getUser().getId())) {
                         if (datasetDef.getInternal() != null && !datasetDef.getInternal()) {
                             File files = new File(PATH + "/" + datasetDef.getId());
                             if (files.listFiles() != null) {
@@ -295,12 +307,12 @@ public class DatasetController {
                                 .badRequest()
                                 .body(new MessageResponse("Not authorized"));
                     }
-                }else {
+                } else {
                     return ResponseEntity
                             .badRequest()
                             .body(new MessageResponse("Error: Dataset definition not found"));
                 }
-            }else {
+            } else {
                 return ResponseEntity
                         .badRequest()
                         .body(new MessageResponse("Error: Dataset not found"));
@@ -391,14 +403,14 @@ public class DatasetController {
 
                     try {
                         Dataset dsSave = datasetBusiness.save(dataset);
-                        if (dsSave != null){
+                        if (dsSave != null) {
                             dd.setUpdatedOn(new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(Calendar.getInstance().getTime()));
                             dd.update(dd);
                             datasetDefinitionBusiness.save(dd);
                         }
 
-                        response.put("data",dsSave);
-                    }catch(Exception e){
+                        response.put("data", dsSave);
+                    } catch (Exception e) {
                         logger.error("Exception occurred " + e.getMessage());
                         return new ResponseEntity<>(HttpStatus.INTERNAL_SERVER_ERROR);
                     }
