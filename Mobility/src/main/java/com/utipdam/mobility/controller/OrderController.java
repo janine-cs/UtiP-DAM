@@ -762,12 +762,14 @@ public class OrderController {
                     if (datasetActivation.getDatasetOwnerId().equals(user.getId())) {
                         if (payment.getStatus().equalsIgnoreCase("LICENSE_ONLY")) {
                             orderBusiness.deleteActivation(id);
-                            orderBusiness.deleteInvoice(id);
+                            orderBusiness.deleteOrderItem(datasetActivation.getOrderItemId());
+                            orderBusiness.deleteOrderDetail(payment.getOrderId());
+                            return ResponseEntity.ok().build();
                         }
                     }
                 }
             }
         }
-        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        return ResponseEntity.notFound().build();
     }
 }

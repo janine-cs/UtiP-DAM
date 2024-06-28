@@ -178,5 +178,10 @@ public class OrderBusiness {
         datasetActivationService.delete(id);
     }
 
-
+    public void deleteOrderDetail(Integer id) {
+        orderDetailService.delete(id);
+    }
+    public void deleteOrderItem(Integer id) {
+        orderItemService.delete(id);
+    }
 }
