@@ -116,15 +116,27 @@ public class OrderController {
                 return new ResponseEntity<>(response, HttpStatus.BAD_REQUEST);
             }
 
-//            List<OrderItem> items = orderBusiness.getOrderItemByUserId(order.getUserId());
-//            long count = items.stream().filter(i -> i.getDatasetDefinitionId().equals(order.getDatasetDefinitionId())
-//                    && i.isPastDate() == order.isPastDate()
-//                    && i.isFutureDate() == order.isFutureDate()).count();
-//
-//            if (count > 0) {
-//                response.put("error", "Duplicate order");
-//                return new ResponseEntity<>(response, HttpStatus.CONFLICT);
-//            }
+            if (order.isSelectedDate()){
+                List<OrderItemDataset> items = orderBusiness.getAllSelectedDateByUserIdAndIsActive(order.getUserId());
+                long count = items.stream().filter(i -> order.getDatasetIds().contains(i.getDatasetId())).count();
+
+                if (count > 0) {
+                    response.put("error", "Duplicate order");
+                    return new ResponseEntity<>(response, HttpStatus.CONFLICT);
+                }
+            }
+
+            if (order.isPastDate() || order.isFutureDate()){
+                List<OrderItem> items = orderBusiness.getAllPurchasesByUserIdAndIsActive(order.getUserId());
+                long count = items.stream().filter(i -> i.getDatasetDefinitionId().equals(order.getDatasetDefinitionId())
+                        && i.isPastDate() == order.isPastDate()
+                        && i.isFutureDate() == order.isFutureDate()).count();
+
+                if (count > 0) {
+                    response.put("error", "Duplicate order");
+                    return new ResponseEntity<>(response, HttpStatus.CONFLICT);
+                }
+            }
 
             OrderDetail orderDetail = new OrderDetail(order.getUserId(), null, null);
             OrderDetail orderDetailSave = orderBusiness.saveOrderDetail(orderDetail);
@@ -790,12 +802,12 @@ public class OrderController {
                     DatasetActivation datasetActivation = datasetActivationOpt.get();
 
                     if (datasetActivation.getDatasetOwnerId().equals(user.getId())) {
-                        if (payment.getStatus().equalsIgnoreCase("LICENSE_ONLY")) {
+                        //if (payment.getStatus().equalsIgnoreCase("LICENSE_ONLY")) {
                             orderBusiness.deleteActivation(id);
                             orderBusiness.deleteOrderItem(datasetActivation.getOrderItemId());
                             orderBusiness.deleteOrderDetail(payment.getOrderId());
                             return ResponseEntity.ok().build();
-                        }
+                        //}
                     }
                 }
             }

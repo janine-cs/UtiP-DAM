@@ -1,6 +1,7 @@
 package com.utipdam.mobility.model.service;
 
 
+import com.utipdam.mobility.model.entity.OrderItem;
 import com.utipdam.mobility.model.entity.OrderItemDataset;
 import com.utipdam.mobility.model.repository.OrderItemDatasetRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -18,7 +19,9 @@ public class OrderItemDatasetService {
     public OrderItemDatasetService(OrderItemDatasetRepository orderItemDatasetRepository) {
         this.orderItemDatasetRepository = orderItemDatasetRepository;
     }
-
+    public List<OrderItemDataset> findAllSelectedDateByUserIdAndIsActive(Long userId) {
+        return orderItemDatasetRepository.findAllSelectedDateByUserIdAndIsActive(userId);
+    }
     public Optional<OrderItemDataset> findById(Integer id) {
         return orderItemDatasetRepository.findById(id);
     }

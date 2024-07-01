@@ -82,6 +82,10 @@ public class OrderBusiness {
         return orderItemService.findAllByOrderId(orderId);
     }
 
+    public List<OrderItem> getOrderItemByUserId(Long userId) {
+        return orderItemService.findAllByUserId(userId);
+    }
+
     public Optional<PaymentDetail> getPaymentById(Integer paymentId) {
         return paymentDetailService.findById(paymentId);
     }
@@ -89,9 +93,12 @@ public class OrderBusiness {
     public List<PaymentDetail> getAllPurchasesByUserId(Long userId) {
         return paymentDetailService.findAllByUserId(userId);
     }
+    public List<OrderItem> getAllPurchasesByUserIdAndIsActive(Long userId) {
+        return orderItemService.findAllByUserIdAndIsActive(userId);
+    }
 
-    public List<PaymentDetail> getAllPurchasesByUserIdAndIsActive(Long userId, Boolean active) {
-        return paymentDetailService.findAllByUserIdAndIsActive(userId, active);
+    public List<OrderItemDataset> getAllSelectedDateByUserIdAndIsActive(Long userId) {
+        return orderItemDatasetService.findAllSelectedDateByUserIdAndIsActive(userId);
     }
     public List<PaymentDetail> getAllPurchasesByDatasetOwnerIdAndIsActive(Long datasetOwnerId, Boolean active) {
         return paymentDetailService.findAllByDatasetOwnerIdAndIsActive(datasetOwnerId, active);
@@ -116,7 +123,7 @@ public class OrderBusiness {
                 if (orderItemOpt.isPresent()) {
                     OrderItem order = orderItemOpt.get();
                     List<UUID> datasets = null;
-                    if (order.isFutureDate()) {
+                    if (order.isSelectedDate()) {
                         List<OrderItemDataset> orderItemDatasets = orderItemDatasetService.findAllByOrderItemId(order.getId());
                         datasets = orderItemDatasets.stream().map(OrderItemDataset::getDatasetId).collect(Collectors.toList());
                     }

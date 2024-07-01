@@ -26,10 +26,6 @@ public class PaymentDetailService {
         return paymentDetailRepository.findAllByUserId(userId);
     }
 
-    public List<PaymentDetail> findAllByUserIdAndIsActive(Long userId, Boolean active) {
-        return paymentDetailRepository.findAllByUserIdAndIsActive(userId, active);
-    }
-
     public List<PaymentDetail> findAllByDatasetOwnerIdAndIsActive(Long datasetOwnerId, Boolean active) {
         return paymentDetailRepository.findAllByDatasetOwnerIdAndIsActive(datasetOwnerId, active);
     }

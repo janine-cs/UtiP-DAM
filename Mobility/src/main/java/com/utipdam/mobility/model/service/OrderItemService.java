@@ -2,6 +2,7 @@ package com.utipdam.mobility.model.service;
 
 
 import com.utipdam.mobility.model.entity.OrderItem;
+import com.utipdam.mobility.model.entity.PaymentDetail;
 import com.utipdam.mobility.model.repository.OrderItemRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -25,6 +26,14 @@ public class OrderItemService {
 
     public List<OrderItem> findAllByOrderId(Integer orderId) {
         return orderItemRepository.findAllByOrderId(orderId);
+    }
+
+    public List<OrderItem> findAllByUserIdAndIsActive(Long userId) {
+        return orderItemRepository.findAllByUserIdAndIsActive(userId);
+    }
+
+    public List<OrderItem> findAllByUserId(Long userId) {
+        return orderItemRepository.findAllByUserId(userId);
     }
 
     public OrderItem save(OrderItem orderItem) {
