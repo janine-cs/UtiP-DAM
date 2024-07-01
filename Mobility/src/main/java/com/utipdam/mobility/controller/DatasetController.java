@@ -178,6 +178,7 @@ public class DatasetController {
             }
 
         } else {
+            response.put("error", "User not found");
             return new ResponseEntity<>(response, HttpStatus.NOT_FOUND);
         }
     }

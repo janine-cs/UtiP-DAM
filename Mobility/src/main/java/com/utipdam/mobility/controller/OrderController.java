@@ -300,11 +300,9 @@ public class OrderController {
 
                                 }
                             }
-
                             return null;
-
                         }).collect(Collectors.toList());
-
+                data.removeAll(Collections.singleton(null));
                 if (!data.isEmpty()) {
                     response.put("data", data);
                     return new ResponseEntity<>(response, HttpStatus.OK);
@@ -526,7 +524,7 @@ public class OrderController {
                 if (pending != null) {
                     if (pending) {
                         p = p.stream().filter(item -> !item.getStatus().equals(PaymentDetail.PaymentStatus.COMPLETED.name())).toList();
-                    }else{
+                    } else {
                         p = p.stream().filter(item -> item.getStatus().equals(PaymentDetail.PaymentStatus.COMPLETED.name())).toList();
                     }
                 }
@@ -539,21 +537,22 @@ public class OrderController {
 
                     OrderItem orderItem = orderBusiness.getOrderItemByOrderId(d.getOrderId()).get(0);
                     Optional<DatasetDefinition> datasetDefinitionOpt = datasetDefinitionBusiness.getById(orderItem.getDatasetDefinitionId());
-
-                    DatasetDefinition datasetDefinition = datasetDefinitionOpt.get();
-                    return new LicenseResponseDTO(d.getId(), datasetDefinition.getId(), datasetDefinition.getName(),
-                            datasetDefinition.getDescription(), datasetDefinition.getUser().getId(),
-                            orderItem.isSelectedDate(), orderItem.isPastDate(), orderItem.isFutureDate(), orderItem.getMonthLicense(),
-                            datasetActivation.getUserId(), user.getUsername(), f.format(d.getCreatedAt()),
-                            datasetActivation.isActive(), d.getLicenseStartDate().toString(), d.getLicenseEndDate().toString(),
-                            d.getStatus(), d.getPaymentSource(), d.getAmount());
-
+                    if (datasetDefinitionOpt.isPresent()) {
+                        DatasetDefinition datasetDefinition = datasetDefinitionOpt.get();
+                        return new LicenseResponseDTO(d.getId(), datasetDefinition.getId(), datasetDefinition.getName(),
+                                datasetDefinition.getDescription(), datasetDefinition.getUser().getId(),
+                                orderItem.isSelectedDate(), orderItem.isPastDate(), orderItem.isFutureDate(), orderItem.getMonthLicense(),
+                                datasetActivation.getUserId(), user.getUsername(), f.format(d.getCreatedAt()),
+                                datasetActivation.isActive(), d.getLicenseStartDate().toString(), d.getLicenseEndDate().toString(),
+                                d.getStatus(), d.getPaymentSource(), d.getAmount());
+                    }
+                    return null;
                 }).collect(Collectors.toList());
-
-                if (licenseList != null && licenseList.size() > 0){
+                licenseList.removeAll(Collections.singleton(null));
+                if (licenseList != null && licenseList.size() > 0) {
                     response.put("data", licenseList);
                     return new ResponseEntity<>(response, HttpStatus.OK);
-                }else{
+                } else {
                     return new ResponseEntity<>(response, HttpStatus.NO_CONTENT);
                 }
 
@@ -593,23 +592,25 @@ public class OrderController {
 
                 OrderItem orderItem = orderBusiness.getOrderItemByOrderId(d.getOrderId()).get(0);
                 Optional<DatasetDefinition> datasetDefinitionOpt = datasetDefinitionBusiness.getById(orderItem.getDatasetDefinitionId());
+                if (datasetDefinitionOpt.isPresent()){
+                    DatasetDefinition datasetDefinition = datasetDefinitionOpt.get();
 
-                DatasetDefinition datasetDefinition = datasetDefinitionOpt.get();
-                return new LicenseResponseDTO(d.getId(), datasetDefinition.getId(), datasetDefinition.getName(),
-                        datasetDefinition.getDescription(), datasetDefinition.getUser().getId(),
-                        orderItem.isSelectedDate(), orderItem.isPastDate(), orderItem.isFutureDate(), orderItem.getMonthLicense(),
-                        datasetActivation.getUserId(), user.getUsername(), f.format(d.getCreatedAt()),
-                        datasetActivation.isActive(), d.getLicenseStartDate().toString(), d.getLicenseEndDate().toString(),
-                        d.getStatus(), d.getPaymentSource(), d.getAmount());
+                    return new LicenseResponseDTO(d.getId(), datasetDefinition.getId(), datasetDefinition.getName(),
+                            datasetDefinition.getDescription(), datasetDefinition.getUser().getId(),
+                            orderItem.isSelectedDate(), orderItem.isPastDate(), orderItem.isFutureDate(), orderItem.getMonthLicense(),
+                            datasetActivation.getUserId(), user.getUsername(), f.format(d.getCreatedAt()),
+                            datasetActivation.isActive(), d.getLicenseStartDate().toString(), d.getLicenseEndDate().toString(),
+                            d.getStatus(), d.getPaymentSource(), d.getAmount());
 
+                }
+                return null;
             }).collect(Collectors.toList());
 
-
-
-            if (licenseList != null && licenseList.size() > 0){
+            licenseList.removeAll(Collections.singleton(null));
+            if (licenseList != null && licenseList.size() > 0) {
                 response.put("data", licenseList);
                 return new ResponseEntity<>(response, HttpStatus.OK);
-            }else{
+            } else {
                 return new ResponseEntity<>(response, HttpStatus.NO_CONTENT);
             }
 
@@ -712,10 +713,39 @@ public class OrderController {
                             PaymentDetail pay = payOpt.get();
                             PaymentDetail paymentSave = null;
 
-                            if (orderItem.isFutureDate() && license.getMonthLicense() != null) {
+                            if (license.getMonthLicense() != null) {
+                                orderItem.setFutureDate(true);
                                 orderItem.setMonthLicense(license.getMonthLicense());
                                 orderItem.setModifiedAt(new Timestamp(System.currentTimeMillis()));
                                 orderBusiness.saveOrderItem(orderItem);
+
+                                Date licenseStartDate;
+                                if (pay.getLicenseStartDate() == null) {
+                                    licenseStartDate = new Date(System.currentTimeMillis());
+                                    pay.setLicenseStartDate(licenseStartDate);
+                                }else{
+                                    licenseStartDate = pay.getLicenseStartDate();
+                                }
+
+                                LocalDate ld = licenseStartDate.toLocalDate();
+                                LocalDate monthLater;
+                                if (license.getMonthLicense() == 12) {
+                                    monthLater = ld.plusMonths(12);
+                                } else if (license.getMonthLicense() == 6) {
+                                    monthLater = ld.plusMonths(6);
+                                } else {
+                                    monthLater = ld.plusMonths(3);
+                                }
+                                Date licenseEndDate = Date.valueOf(monthLater);
+
+                                pay.setLicenseEndDate(licenseEndDate);
+                                pay.setModifiedAt(new Timestamp(System.currentTimeMillis()));
+                                paymentSave = orderBusiness.savePaymentDetail(pay);
+
+                                datasetActivation.setExpirationDate(paymentSave.getLicenseEndDate());
+                                datasetActivation.setModifiedAt(new Timestamp(System.currentTimeMillis()));
+                                orderBusiness.saveDatasetActivation(datasetActivation);
+
                             }
                             if (license.getLicenseStartDate() != null && license.getLicenseEndDate() != null) {
                                 Date start = Date.valueOf(license.getLicenseStartDate());
