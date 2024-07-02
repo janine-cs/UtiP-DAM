@@ -9,6 +9,8 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 import java.sql.Date;
 import java.sql.Timestamp;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -117,8 +119,9 @@ public class OrderBusiness {
         Optional<DatasetActivation> datasetActivationOpt = datasetActivationService.validateApiKey(apiKey);
         if (datasetActivationOpt.isPresent()) {
             DatasetActivation datasetActivation = datasetActivationOpt.get();
-            if (datasetActivation.isActive() && (datasetActivation.getExpirationDate().after(new Date(System.currentTimeMillis())) ||
-                    datasetActivation.getExpirationDate().toLocalDate().isEqual(new Date(System.currentTimeMillis()).toLocalDate()))) {
+            LocalDate dt = datasetActivation.getExpirationDate().toLocalDate();
+            LocalDate expirationDate = dt.plusDays(1);
+            if (datasetActivation.isActive() && (expirationDate.isEqual(LocalDate.now()) || expirationDate.isAfter(LocalDate.now()))) {
                 Optional<OrderItem> orderItemOpt = orderItemService.findById(datasetActivation.getOrderItemId());
                 if (orderItemOpt.isPresent()) {
                     OrderItem order = orderItemOpt.get();
