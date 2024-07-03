@@ -25,7 +25,7 @@ public class SendEmail {
     private Integer SMTP_AUTH_PORT;
 
     @Value("${utipdam.app.contactEmail}")
-    private String CONTACT_EMAIL;
+    public String CONTACT_EMAIL;
 
     public String send(Email email){
         Properties prop = new Properties();

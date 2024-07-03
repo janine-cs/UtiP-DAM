@@ -11,6 +11,7 @@ import com.opencsv.RFC4180Parser;
 import com.opencsv.RFC4180ParserBuilder;
 import com.opencsv.exceptions.CsvValidationException;
 import com.utipdam.mobility.FileUploadUtil;
+import com.utipdam.mobility.SendEmail;
 import com.utipdam.mobility.business.DatasetDefinitionBusiness;
 import com.utipdam.mobility.business.DatasetBusiness;
 import com.utipdam.mobility.business.OrderBusiness;
@@ -95,6 +96,8 @@ public class MobilityController {
     @Autowired
     AuthenticationManager authenticationManager;
 
+    @Autowired
+    private SendEmail sendEmail;
     @PostMapping(value = {"/mobility/upload", "/mobility/anonymize"})
     public ResponseEntity<?> anonymizeOnly(@RequestPart MultipartFile file,
                                            @RequestPart String k) {
@@ -704,6 +707,21 @@ public class MobilityController {
                     if (f.delete()) {
                         logger.info(f + " file deleted");
                     }
+
+                    //if publish to MDS mobility data spaces, email admin
+                    if (ds.getPublishMDS()){
+                        Email email = new Email();
+                        email.setContactEmail(ds.getOrganization().getEmail());
+                        email.setName(ds.getOrganization().getName());
+                        email.setSubject("[UtiP-DAM] Publish to MDS request");
+                        email.setMessage("Publish to Mobility Data Spaces: Dataset " + ds.getId() + " " + ds.getName());
+                        String responseMsg = sendEmail.send(email);
+                        if (responseMsg.equals("Successfully sent")){
+                            logger.info("Publish to MDS email sent.");
+                        }
+                    }
+
+
                     return ResponseEntity.ok()
                             .headers(responseHeaders)
                             .contentLength(inputStream.available())
