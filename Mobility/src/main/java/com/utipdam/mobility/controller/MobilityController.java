@@ -129,7 +129,7 @@ public class MobilityController {
 
             return ResponseEntity.badRequest().body(errorMessage);
         }
-
+        String strPath = null;
         try {
             StringBuffer inputBuffer = new StringBuffer();
 
@@ -137,7 +137,7 @@ public class MobilityController {
             UUID uuid = UUID.randomUUID();
             String fileName = "upload-" + uuid + ".csv";
             String path = "/tmp";
-            String strPath = path + "/" + fileName;
+            strPath = path + "/" + fileName;
 
             FileUploadUtil.saveFile(fileName, file, Paths.get(path));
             Scanner input = new Scanner(new File(strPath));
@@ -252,6 +252,13 @@ public class MobilityController {
 
             }
         } catch (IOException | InterruptedException e) {
+            if (strPath != null){
+                File f = new File(strPath);
+                if (f.delete()) {
+                    logger.info(f + " file deleted");
+                }
+            }
+
             errorMessage = e.getMessage();
             logger.error(errorMessage);
             return ResponseEntity.internalServerError().body(errorMessage);
@@ -600,14 +607,14 @@ public class MobilityController {
             return ResponseEntity.internalServerError().body(errorMessage);
         }
 
-
+        String strPath = null;
         try {
             StringBuffer inputBuffer = new StringBuffer();
 
             //anonymization process
             UUID uuid = UUID.randomUUID();
             String fileName = "upload-" + uuid + ".csv";
-            String strPath = path + "/" + fileName;
+            strPath = path + "/" + fileName;
 
             FileUploadUtil.saveFile(fileName, file, Paths.get(path));
             Scanner input = new Scanner(new File(strPath));
@@ -648,8 +655,11 @@ public class MobilityController {
             File fi = new File(strOutPath);
             String pyPath = "/opt/utils/anonymization-v" + ANONYMIZATION_VERSION + ".py";
 
-            ProcessBuilder processBuilder = new ProcessBuilder("python3", pyPath,
-                    "--input", strPath, "--k", String.valueOf(dto.getK()));
+//            ProcessBuilder processBuilder = new ProcessBuilder("python3", pyPath,
+//                    "--input", strPath, "--k", String.valueOf(dto.getK()));
+//            processBuilder.redirectErrorStream(true);
+//            processBuilder.redirectOutput(ProcessBuilder.Redirect.appendTo(fi));
+            ProcessBuilder processBuilder = new ProcessBuilder("/bin/sh", "-c","python3 " + pyPath + " --input " + strPath + " --k " + dto.getK() + " | tail -n +2");
             processBuilder.redirectErrorStream(true);
             processBuilder.redirectOutput(ProcessBuilder.Redirect.appendTo(fi));
             Process process = processBuilder.start();
@@ -660,8 +670,8 @@ public class MobilityController {
                 String line;
                 long i = 0;
                 BufferedReader br = new BufferedReader(new FileReader(strOutPath));
-                String firstLine = br.readLine();
-                String metrics = firstLine.contains("{'data':") ? firstLine.replaceAll("'", "\"") : null;
+//                String firstLine = br.readLine();
+ //               String metrics = firstLine.contains("{'data':") ? firstLine.replaceAll("'", "\"") : null;
 
                 while ((line = br.readLine()) != null) {
                     inputBuffer.append(line);
@@ -697,7 +707,7 @@ public class MobilityController {
                             .filename(fileName)
                             .build();
                     responseHeaders.setContentDisposition(contentDisposition);
-                    responseHeaders.add("Performance-Metrics", metrics);
+                 //   responseHeaders.add("Performance-Metrics", metrics);
 
 
                     InputStream inputStream = new ByteArrayInputStream(inputStr.getBytes(StandardCharsets.UTF_8));
@@ -746,9 +756,19 @@ public class MobilityController {
             }
 
         } catch (IOException | InterruptedException e) {
+            File f = new File(strPath);
+            if (f.delete()) {
+                logger.info(f + " file deleted");
+            }
+
             errorMessage = e.getMessage();
             logger.error(errorMessage);
             return ResponseEntity.internalServerError().body(errorMessage);
+        }
+
+        File f = new File(strPath);
+        if (f.delete()) {
+            logger.info(f + " file deleted");
         }
 
         errorMessage = "An error occurred while processing your request";
@@ -807,7 +827,7 @@ public class MobilityController {
             return ResponseEntity.internalServerError().body(errorMessage);
         }
 
-
+        String strPath = null;
         try {
             String csvDate = null;
             StringBuffer inputBuffer = new StringBuffer();
@@ -815,7 +835,7 @@ public class MobilityController {
             //anonymization process
             UUID uuid = UUID.randomUUID();
             String fileName = "upload-" + uuid + ".csv";
-            String strPath = path + "/" + fileName;
+            strPath = path + "/" + fileName;
 
             FileUploadUtil.saveFile(fileName, file, Paths.get(path));
             Scanner input = new Scanner(new File(strPath));
@@ -856,8 +876,11 @@ public class MobilityController {
             File fi = new File(strOutPath);
             String pyPath = "/opt/utils/anonymization-v" + ANONYMIZATION_VERSION + ".py";
 
-            ProcessBuilder processBuilder = new ProcessBuilder("python3", pyPath,
-                    "--input", strPath, "--k", k);
+//            ProcessBuilder processBuilder = new ProcessBuilder("python3", pyPath,
+//                    "--input", strPath, "--k", k);
+//            processBuilder.redirectErrorStream(true);
+//            processBuilder.redirectOutput(ProcessBuilder.Redirect.appendTo(fi));
+            ProcessBuilder processBuilder = new ProcessBuilder("/bin/sh", "-c","python3 " + pyPath + " --input " + strPath + " --k " + k + " | tail -n +2");
             processBuilder.redirectErrorStream(true);
             processBuilder.redirectOutput(ProcessBuilder.Redirect.appendTo(fi));
             Process process = processBuilder.start();
@@ -868,8 +891,8 @@ public class MobilityController {
                 String line;
                 long i = 0;
                 BufferedReader br = new BufferedReader(new FileReader(strOutPath));
-                String firstLine = br.readLine();
-                String metrics = firstLine.contains("{'data':") ? firstLine.replaceAll("'", "\"") : null;
+               // String firstLine = br.readLine();
+               // String metrics = firstLine.contains("{'data':") ? firstLine.replaceAll("'", "\"") : null;
 
                 while ((line = br.readLine()) != null) {
                     inputBuffer.append(line);
@@ -907,7 +930,7 @@ public class MobilityController {
                                 .filename(fileName)
                                 .build();
                         responseHeaders.setContentDisposition(contentDisposition);
-                        responseHeaders.add("Performance-Metrics", metrics);
+               //         responseHeaders.add("Performance-Metrics", metrics);
 
                         InputStream inputStream = new ByteArrayInputStream(inputStr.getBytes(StandardCharsets.UTF_8));
                         InputStreamResource resource = new InputStreamResource(inputStream);
@@ -951,9 +974,19 @@ public class MobilityController {
             }
 
         } catch (IOException | InterruptedException e) {
+            File f = new File(strPath);
+            if (f.delete()) {
+                logger.info(f + " file deleted");
+            }
+
             errorMessage = e.getMessage();
             logger.error(errorMessage);
             return ResponseEntity.internalServerError().body(errorMessage);
+        }
+
+        File f = new File(strPath);
+        if (f.delete()) {
+            logger.info(f + " file deleted");
         }
 
         errorMessage = "An error occurred while processing your request";

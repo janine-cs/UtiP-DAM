@@ -6,10 +6,7 @@ import com.utipdam.mobility.business.OrderBusiness;
 import com.utipdam.mobility.config.AuthTokenFilter;
 import com.utipdam.mobility.exception.DefaultException;
 import com.utipdam.mobility.model.*;
-import com.utipdam.mobility.model.entity.Dataset;
-import com.utipdam.mobility.model.entity.DatasetDefinition;
-import com.utipdam.mobility.model.entity.DownloadsByDay;
-import com.utipdam.mobility.model.entity.User;
+import com.utipdam.mobility.model.entity.*;
 import com.utipdam.mobility.model.repository.UserRepository;
 import org.apache.commons.io.FileUtils;
 import org.slf4j.Logger;
@@ -244,10 +241,12 @@ public class DatasetController {
 
         if (userOpt.isPresent()) {
             User userData = userOpt.get();
+
             Optional<DatasetDefinition> dd = datasetDefinitionBusiness.getById(id);
             if (dd.isPresent()) {
                 DatasetDefinition datasetDef = dd.get();
-                if (userData.getId().equals(datasetDef.getUser().getId())) {
+                if (userData.getId().equals(datasetDef.getUser().getId()) ||
+                        userData.getRoles().stream().map(r -> r.getName().name()).toList().contains(ERole.ROLE_ADMIN.name())) {
                     if (datasetDef.getInternal() != null && !datasetDef.getInternal()) {
                         try {
                             FileUtils.deleteDirectory(new File(PATH + "/" + datasetDef.getId()));
@@ -288,7 +287,8 @@ public class DatasetController {
                 Optional<DatasetDefinition> dd = datasetDefinitionBusiness.getById(dataset.getDatasetDefinition().getId());
                 if (dd.isPresent()) {
                     DatasetDefinition datasetDef = dd.get();
-                    if (userData.getId().equals(datasetDef.getUser().getId())) {
+                    if (userData.getId().equals(datasetDef.getUser().getId())||
+                            userData.getRoles().stream().map(r -> r.getName().name()).toList().contains(ERole.ROLE_ADMIN.name())) {
                         if (datasetDef.getInternal() != null && !datasetDef.getInternal()) {
                             File files = new File(PATH + "/" + datasetDef.getId());
                             if (files.listFiles() != null) {

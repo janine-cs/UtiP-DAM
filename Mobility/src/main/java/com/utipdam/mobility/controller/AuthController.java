@@ -230,6 +230,11 @@ public class AuthController {
 
         if (userOpt.isPresent()) {
             User userData = userOpt.get();
+            if (userData.getUsername().equalsIgnoreCase("admin") ){
+                return ResponseEntity
+                        .badRequest()
+                        .body(new MessageResponse("Error: Deleting admin account not permitted. Contact system administrator."));
+            }
             int random = new Random().nextInt(900000) + 100000;
             userRepository.anonymize(userData.getId(), "deletedUser" + random, random + "@anonymous.com");
             return ResponseEntity.ok(new MessageResponse("User deleted successfully!"));
