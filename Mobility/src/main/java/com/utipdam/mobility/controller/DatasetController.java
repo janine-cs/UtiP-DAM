@@ -192,6 +192,7 @@ public class DatasetController {
             if (opt.isPresent()) {
                 DatasetDefinition d = opt.get();
                 if (userData.getId().equals(d.getUser().getId())) {
+                    dataset.setUserId(d.getUser().getId());
                     response.put("data", datasetDefinitionBusiness.update(id, dataset));
                     return new ResponseEntity<>(response, HttpStatus.OK);
                 } else {
