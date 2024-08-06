@@ -3,6 +3,7 @@ package com.utipdam.internal.controller;
 import org.apache.commons.io.filefilter.WildcardFileFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.InputStreamResource;
 import org.springframework.core.io.Resource;
@@ -18,8 +19,6 @@ import java.util.Comparator;
 
 @RestController
 public class DownloadController {
-    private static final Logger logger = LoggerFactory.getLogger(MobilityController.class);
-
     @GetMapping("/analytics")
     public ResponseEntity<Resource> download() throws IOException {
         HttpHeaders responseHeaders = new HttpHeaders();
@@ -62,15 +61,29 @@ public class DownloadController {
     }
 
     @GetMapping("/mobility")
-    public ResponseEntity<Resource> downloadMobility(@RequestParam String datasetDefinition) throws IOException {
+    public ResponseEntity<?> downloadMobility(@RequestParam String datasetDefinition) throws IOException {
         HttpHeaders responseHeaders = new HttpHeaders();
 
         String path = "/data/mobility/"+datasetDefinition+"/";
         File dir = new File(path);
         File[] files = dir.listFiles();
-        if (files != null) {
+        if (files == null) {
+            String str = "File not found";
+            ByteArrayResource resource = new ByteArrayResource(str.getBytes(StandardCharsets.UTF_8));
+            ContentDisposition contentDisposition = ContentDisposition.builder("inline")
+                    .filename("error.txt")
+                    .build();
+
+            responseHeaders.setContentDisposition(contentDisposition);
+
+            return ResponseEntity.internalServerError()
+                    .headers(responseHeaders)
+                    .contentLength(str.length())
+                    .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                    .body(resource);
+
+        } else {
             Arrays.sort(files, Comparator.comparingLong(File::lastModified).reversed());
-            //for (File fi : files) {
             File fi = files[0];
             BufferedReader file = new BufferedReader(
                     new InputStreamReader(new FileSystemResource(fi).getInputStream()));
@@ -95,9 +108,6 @@ public class DownloadController {
                     .contentLength(stream.available())
                     .contentType(MediaType.APPLICATION_OCTET_STREAM)
                     .body(resource);
-            // }
         }
-
-        return null;
     }
 }
