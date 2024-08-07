@@ -198,11 +198,9 @@ public class MDSBusiness {
 
                 Email email = new Email();
                 email.setRecipientEmail(ds.getOrganization().getEmail());
-                email.setContactEmail(CONTACT_EMAIL);
-                email.setName("Admin");
                 email.setSubject("[UtiP-DAM] Dataset Published to Mobility Data Spaces");
                 String url = MDS_ENV.equals("prod") ? "https://catalog-next.mobility-dataspace.eu" : "https://catalog-next.test.mobility-dataspace.eu";
-                email.setMessage("Your dataset " + ds.getName() + " connector endpoint is available at Mobility Data Spaces " + url + "<br/>");
+                email.setMessage("Your dataset " + ds.getName() + " connector endpoint is now available at Mobility Data Spaces " + url + "<br/>");
                 String responseMsg = sendEmail.send(email);
                 if (responseMsg.equals("Successfully sent")) {
                     logger.info("Published to MDS email sent.");
