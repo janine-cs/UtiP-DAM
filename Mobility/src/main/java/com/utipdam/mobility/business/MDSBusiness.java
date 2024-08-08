@@ -73,7 +73,7 @@ public class MDSBusiness {
         try {
             JSONObject request = new JSONObject();
 
-            String idName = ds.getName().toLowerCase().replaceAll(" ", "-");
+            String idName = ds.getName().toLowerCase().replaceAll("[^A-Za-z0-9 ]","").trim().replaceAll(" +", " ").replaceAll(" ", "-");
             request.put("id", idName + "-" + (getAssetCount(accessToken)+1));
             logger.info(idName);
 
