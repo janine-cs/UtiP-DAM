@@ -5,17 +5,17 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>2.6.2</version>
+        <version>3.0.4</version>
         <relativePath/> <!-- lookup parent from repository -->
     </parent>
     <groupId>com.utip-dam</groupId>
     <artifactId>Internal</artifactId>
-    <version>0.0.3</version>
+    <version>0.0.4</version>
     <packaging>war</packaging>
     <name>Internal</name>
     <description>Internal</description>
     <properties>
-        <java.version>11</java.version>
+        <java.version>17</java.version>
     </properties>
     <dependencies>
         <dependency>

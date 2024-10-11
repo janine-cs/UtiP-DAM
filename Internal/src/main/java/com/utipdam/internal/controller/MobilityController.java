@@ -114,7 +114,7 @@ public class MobilityController {
         try {
             String pyPath = "/opt/utils/anonymization-v"+ANONYMIZATION_VERSION+".py";
             logger.info("version " + ANONYMIZATION_VERSION);
-            ProcessBuilder processBuilder = new ProcessBuilder("/bin/sh", "-c","python3 " + pyPath + " --input " + file + " --k " + k + " | tail -n +2");
+            ProcessBuilder processBuilder = new ProcessBuilder("/bin/sh", "-c","/opt/python_projects/envs/lbacore/bin/python3 " + pyPath + " --input " + file + " --k " + k + " | tail -n +2");
             processBuilder.redirectErrorStream(true);
             processBuilder.redirectOutput(ProcessBuilder.Redirect.appendTo(fi));
             Process process = processBuilder.start();
